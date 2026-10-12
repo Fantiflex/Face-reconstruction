@@ -5,10 +5,12 @@ This script loads and harmonises the CFD norming data, reports the available
 self-reported demographic categories, examines perceived-ethnicity
 probabilities, and saves audit tables for reproducibility.
 """
+
+
+import argparse
 from pathlib import Path
 
 import pandas as pd
-import argparse
 
 from face_reconstruction.data.cfd_manifest import (
     harmonize_cfd_manifest,
