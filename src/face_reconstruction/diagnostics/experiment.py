@@ -6,7 +6,7 @@ from collections import defaultdict, deque
 import numpy as np
 import pandas as pd
 
-from .schemas import require_columns
+from ..schemas import require_columns
 
 
 def compute_appearance_counts(comparisons: pd.DataFrame) -> pd.Series:
