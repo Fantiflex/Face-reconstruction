@@ -24,6 +24,13 @@ from face_reconstruction.geometry.triangulation import (
 )
 
 
+
+from face_reconstruction.utils.io import (
+    load_alignment_artifacts,
+    resolve_path,
+    sha256_arrays,
+)
+
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
 DEFAULT_OUTPUT_DIR = Path("data/interim/common_triangulation")
 EXPECTED_LANDMARK_COUNT = 478
@@ -98,73 +105,6 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_bool(series: pd.Series) -> pd.Series:
-    if pd.api.types.is_bool_dtype(series):
-        return series.fillna(False)
-    if pd.api.types.is_numeric_dtype(series):
-        return series.fillna(0).astype(int).eq(1)
-    return series.astype(str).str.strip().str.lower().isin(
-        {"true", "1", "yes", "y", "oui"}
-    )
-
-
-def resolve_path(raw: str, reference: Path) -> Path:
-    path = Path(raw).expanduser()
-    if path.is_absolute():
-        return path
-    candidates = (Path.cwd() / path, reference.resolve().parent / path)
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return candidates[0].resolve()
-
-
-def load_alignment(aligned_dir: Path) -> tuple[pd.DataFrame, np.ndarray, int, int]:
-    manifest_path = aligned_dir / "alignment_manifest.csv"
-    mean_path = aligned_dir / "mean_aligned_landmarks.npy"
-    config_path = aligned_dir / "alignment_config.json"
-    for path in (manifest_path, mean_path, config_path):
-        if not path.exists():
-            raise FileNotFoundError(f"Required step-08 artifact not found: {path}")
-
-    manifest = pd.read_csv(manifest_path)
-    required = {"face_id", "aligned_image_path", "aligned_landmark_path"}
-    missing = required.difference(manifest.columns)
-    if missing:
-        raise ValueError(f"Alignment manifest is missing columns: {sorted(missing)}")
-    if "alignment_qc_pass" not in manifest.columns:
-        raise ValueError("Alignment manifest has no alignment_qc_pass column.")
-    manifest["face_id"] = manifest["face_id"].astype(str).str.strip()
-    manifest["alignment_qc_pass"] = parse_bool(manifest["alignment_qc_pass"])
-    manifest = manifest.loc[manifest["alignment_qc_pass"]].copy()
-    manifest = manifest.sort_values("face_id", kind="stable").reset_index(drop=True)
-    if manifest.empty:
-        raise ValueError("No step-08 alignment passed QC.")
-    if manifest["face_id"].duplicated().any():
-        raise ValueError("Alignment manifest contains duplicate face_id values.")
-
-    mean_landmarks = np.asarray(np.load(mean_path, allow_pickle=False), dtype=np.float64)
-    config = json.loads(config_path.read_text(encoding="utf-8"))
-    width = int(config["output_width"])
-    height = int(config["output_height"])
-    return manifest, mean_landmarks, width, height
-
-
-
-
-
-
-
-
-
-
-
-def sha256_arrays(points: np.ndarray, triangles: np.ndarray) -> str:
-    digest = hashlib.sha256()
-    digest.update(np.asarray(points, dtype="<f4").tobytes(order="C"))
-    digest.update(np.asarray(triangles, dtype="<i4").tobytes(order="C"))
-    return digest.hexdigest()
-
 
 
 
@@ -209,7 +149,19 @@ def main() -> int:
 
     aligned_dir = args.aligned_dir.expanduser()
     output_dir = args.output_dir.expanduser()
-    manifest, mean_landmarks, width, height = load_alignment(aligned_dir)
+    manifest, mean_landmarks, alignment_config = (
+        load_alignment_artifacts(
+            aligned_dir
+        )
+    )
+
+    width = int(
+        alignment_config["output_width"]
+    )
+
+    height = int(
+        alignment_config["output_height"]
+    )
     expected_shape = (args.expected_landmarks, 2)
     if mean_landmarks.shape != expected_shape:
         raise ValueError(f"Expected mean shape {expected_shape}, got {mean_landmarks.shape}.")

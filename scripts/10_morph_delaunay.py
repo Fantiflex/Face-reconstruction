@@ -31,6 +31,13 @@ from face_reconstruction.reconstruction.morph import (
 )
 
 
+from face_reconstruction.utils.io import (
+    parse_bool,
+    resolve_path,
+    sha256_arrays,
+)
+
+
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
 DEFAULT_TRIANGULATION_DIR = Path("data/interim/common_triangulation")
 DEFAULT_BT_OUTPUT_DIR = Path("data/results/morphing/bradley_terry")
@@ -221,15 +228,6 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def parse_bool(series: pd.Series) -> pd.Series:
-    if pd.api.types.is_bool_dtype(series):
-        return series.fillna(False)
-    if pd.api.types.is_numeric_dtype(series):
-        return series.fillna(0).astype(int).eq(1)
-    return series.astype(str).str.strip().str.lower().isin(
-        {"true", "1", "yes", "y", "oui"}
-    )
-
 
 def parse_index_list(value: Any) -> set[int]:
     """Parse a JSON list of non-negative triangle indices from a CSV cell."""
@@ -251,30 +249,12 @@ def parse_index_list(value: Any) -> set[int]:
     return indices
 
 
-def resolve_path(raw: str, reference_file: Path) -> Path:
-    path = Path(raw).expanduser()
-    if path.is_absolute():
-        return path
-    candidates = (
-        Path.cwd() / path,
-        reference_file.resolve().parent / path,
-    )
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate.resolve()
-    return candidates[0].resolve()
 
 
 def safe_filename(value: str) -> str:
     cleaned = re.sub(r"[^A-Za-z0-9._-]+", "_", value.strip())
     return cleaned or "unnamed_face"
 
-
-def sha256_arrays(points: np.ndarray, triangles: np.ndarray) -> str:
-    digest = hashlib.sha256()
-    digest.update(np.asarray(points, dtype="<f4").tobytes(order="C"))
-    digest.update(np.asarray(triangles, dtype="<i4").tobytes(order="C"))
-    return digest.hexdigest()
 
 
 def require_columns(
@@ -1043,7 +1023,7 @@ def main() -> int:
         fallback_texture,
         max_uncovered_fraction=args.max_uncovered_fraction,
     )
-    
+
     result = np.clip(np.rint(reconstruction), 0, 255).astype(np.uint8)
     if not cv2.imwrite(str(reconstruction_path), result):
         raise OSError(
