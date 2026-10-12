@@ -105,3 +105,90 @@ The same triangle topology is then validated across all aligned faces.
 Builds a weighted target facial shape, piecewise-affine warps each aligned face to that target geometry, and combines the warped textures using participant-specific reconstruction weights.
 
 The final output is a facial prototype representing the participant's latent preference structure.
+
+
+
+
+## Repository Structure
+
+```text
+Face_Reconstruction/
+├── scripts/
+│   ├── 01_audit_cfd_manifest.py
+│   ├── 02_build_stimuli.py
+│   ├── 03_generate_pairs.py
+│   ├── 04_simulate_participants.py
+│   ├── 05_fit_bradley_terry.py
+│   ├── 06_extract_landmarks.py
+│   ├── 07_visualise_landmarks.py
+│   ├── 08_align_faces.py
+│   ├── 09_build_common_triangulation.py
+│   └── 10_morph_delaunay.py
+├── src/
+│   └── face_reconstruction/
+│       ├── data/
+│       ├── diagnostics/
+│       ├── experiment/
+│       ├── geometry/
+│       ├── models/
+│       ├── reconstruction/
+│       ├── utils/
+│       ├── validation/
+│       ├── pipeline.py
+│       └── schemas.py
+├── tests/
+├── .github/
+│   └── workflows/
+├── pyproject.toml
+└── README.md
+```
+
+The repository follows a `src/` layout. Reusable scientific logic lives in the `face_reconstruction` package, while `scripts/` contains the command-line entry points for each stage of the pipeline.
+
+The main package responsibilities are:
+
+- `data/`: CFD metadata handling and stimulus construction.
+- `experiment/`: pair generation and response simulation.
+- `models/`: Bradley–Terry estimation.
+- `geometry/`: landmark validation, face alignment, triangulation, and piecewise-affine warping.
+- `reconstruction/`: weighting and participant-specific facial morphing.
+- `diagnostics/`: experimental and model diagnostics.
+- `validation/`: validation utilities for experimental data.
+- `utils/`: shared I/O and path utilities.
+
+## Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/Fantiflex/Face-reconstruction.git
+cd Face-reconstruction
+```
+
+Create and activate a virtual environment:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+Upgrade `pip`:
+
+```bash
+python -m pip install --upgrade pip
+```
+
+Install the package in editable mode with development dependencies:
+
+```bash
+python -m pip install -e ".[dev]"
+```
+
+The project currently supports Python 3.10–3.13.
+
+Verify the installation with:
+
+```bash
+python -m pytest
+python -m ruff check src scripts tests
+```
