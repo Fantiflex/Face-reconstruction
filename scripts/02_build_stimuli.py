@@ -6,11 +6,10 @@ local images, applies demographic and perceptual inclusion criteria, validates
 the selected stimuli, and saves the resulting study manifest.
 """
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
-import argparse
-
 
 from face_reconstruction.data.cfd_manifest import (
     harmonize_cfd_manifest,
@@ -52,6 +51,17 @@ MINIMUM_PERCEIVED_PROBABILITY = 0.9
 MINIMUM_PERCEIVED_GENDER = 0.9
 
 
+def normalise_cli_selection(
+    values: list[str] | None,
+) -> list[str] | None:
+    if values is None:
+        return None
+
+    if any(value.lower() == "all" for value in values):
+        return None
+
+    return values
+
 def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Build the standardized CFD stimulus table."
@@ -78,6 +88,73 @@ def parse_arguments() -> argparse.Namespace:
         help=f"Stimulus CSV output path. Default: {OUTPUT_PATH}",
     )
 
+    parser.add_argument(
+    "--genders",
+    nargs="+",
+    default=GENDERS,
+    metavar="GENDER",
+    help=(
+        "Self-reported genders to include, e.g. "
+        "'--genders M' or '--genders M F'. "
+        "Use 'all' for no gender filter. "
+        f"Default: {GENDERS}"
+    ),
+)
+
+    parser.add_argument(
+        "--ethnicities-self",
+        nargs="+",
+        default=ETHNICITIES_SELF,
+        metavar="ETHNICITY",
+        help=(
+            "Self-reported ethnicities to include. "
+            "Use 'all' for no self-reported ethnicity filter. "
+            f"Default: {ETHNICITIES_SELF}"
+        ),
+    )
+
+    parser.add_argument(
+        "--ethnicities-perceived",
+        nargs="+",
+        default=ETHNICITIES_PERCEIVED,
+        metavar="ETHNICITY",
+        help=(
+            "Perceived ethnicities to include, e.g. "
+            "'--ethnicities-perceived Black White'. "
+            "Use 'all' for no perceived ethnicity filter. "
+            f"Default: {ETHNICITIES_PERCEIVED}"
+        ),
+    )
+
+    parser.add_argument(
+        "--ethnicity-selection-mode",
+        choices=["self", "perceived", "both"],
+        default=ETHNICITY_SELECTION_MODE,
+        help=(
+            "Which ethnicity criterion to apply. "
+            f"Default: {ETHNICITY_SELECTION_MODE}"
+        ),
+    )
+
+    parser.add_argument(
+        "--min-perceived-probability",
+        type=float,
+        default=MINIMUM_PERCEIVED_PROBABILITY,
+        help=(
+            "Minimum probability for the dominant perceived ethnicity. "
+            f"Default: {MINIMUM_PERCEIVED_PROBABILITY}"
+        ),
+    )
+
+    parser.add_argument(
+        "--min-perceived-gender",
+        type=float,
+        default=MINIMUM_PERCEIVED_GENDER,
+        help=(
+            "Minimum perceived-gender probability. "
+            f"Default: {MINIMUM_PERCEIVED_GENDER}"
+        ),
+    )
     return parser.parse_args()
 
 def build_selection_summary(
@@ -240,20 +317,25 @@ def main() -> None:
     stimuli = build_stimuli_table(
         manifest=manifest,
         image_directory=args.image_dir,
-        genders=GENDERS,
-        minimum_perceived_gender=MINIMUM_PERCEIVED_GENDER,
-        ethnicities_self=ETHNICITIES_SELF,
-        ethnicities_perceived=(
-            ETHNICITIES_PERCEIVED
+        genders=normalise_cli_selection(
+            args.genders
+        ),
+        minimum_perceived_gender=(
+            args.min_perceived_gender
+        ),
+        ethnicities_self=normalise_cli_selection(
+            args.ethnicities_self
+        ),
+        ethnicities_perceived=normalise_cli_selection(
+            args.ethnicities_perceived
         ),
         minimum_perceived_probability=(
-            MINIMUM_PERCEIVED_PROBABILITY
+            args.min_perceived_probability
         ),
         ethnicity_selection_mode=(
-            ETHNICITY_SELECTION_MODE
+            args.ethnicity_selection_mode
         ),
     )
-    
     validate_stimuli(
         stimuli
     )
