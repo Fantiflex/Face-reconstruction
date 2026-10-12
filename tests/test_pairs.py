@@ -1,5 +1,4 @@
-from face_reconstruction.pairs import generate_all_pairs
-
+from face_reconstruction.experiment.pairs import generate_all_pairs
 
 def test_generate_all_pairs():
     pairs = generate_all_pairs(

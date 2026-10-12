@@ -4,6 +4,8 @@ scipy
 openpyxl
 pyyaml
 pillow
+opencv-python
+mediapipe
 
 [dev]
 pytest

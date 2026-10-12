@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from face_reconstruction.weighting import (
+from face_reconstruction.reconstruction.weighting import (
     build_weight_table,
     effective_sample_size,
     normalize_weights,

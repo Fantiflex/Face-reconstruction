@@ -5,7 +5,7 @@ import pandas as pd
 from scipy.optimize import minimize
 from scipy.special import expit
 
-from .schemas import require_columns
+from ..schemas import require_columns
 
 
 def build_design_matrix(

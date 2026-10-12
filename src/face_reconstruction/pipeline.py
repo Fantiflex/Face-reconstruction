@@ -6,18 +6,18 @@ from typing import Any, Callable
 import pandas as pd
 import yaml
 
-from .bradley_terry import (
+from .models.bradley_terry import (
     add_softmax_weights,
     estimate_standard_errors,
     estimate_theta,
 )
 from .diagnostics import build_diagnostic_table
-from .pairs import (
+from .experiment.pairs import (
     add_pair_ids,
     generate_balanced_pairs,
     randomise_pair_sides,
 )
-from .stimuli import build_stimuli_table
+from .data.stimuli import build_stimuli_table
 from .validation import validate_pairs, validate_responses, validate_stimuli
 
 

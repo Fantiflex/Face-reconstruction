@@ -3,7 +3,7 @@
 import numpy as np
 import pandas as pd
 
-from .schemas import require_columns
+from ..schemas import require_columns
 
 
 def generate_latent_scores(

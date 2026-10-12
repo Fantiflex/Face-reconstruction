@@ -5,7 +5,7 @@ from itertools import combinations
 import numpy as np
 import pandas as pd
 
-from .schemas import require_columns
+from ..schemas import require_columns
 
 
 def _validate_face_ids(face_ids: list[str]) -> list[str]:

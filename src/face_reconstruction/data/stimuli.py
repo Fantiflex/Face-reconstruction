@@ -6,7 +6,7 @@ from typing import Literal
 import re
 import pandas as pd
 
-from .schemas import STIMULUS_REQUIRED_COLUMNS, require_columns
+from ..schemas import STIMULUS_REQUIRED_COLUMNS, require_columns
 
 
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}

@@ -1,7 +1,6 @@
 import pandas as pd
 
-from face_reconstruction.bradley_terry import estimate_theta
-
+from face_reconstruction.models.bradley_terry import estimate_theta
 
 def test_winning_face_gets_higher_score():
     responses = pd.DataFrame(
