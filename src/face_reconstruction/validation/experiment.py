@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from .schemas import PAIR_COLUMNS, RESPONSE_COLUMNS, require_columns
+from ..schemas import PAIR_COLUMNS, RESPONSE_COLUMNS, require_columns
 
 
 def validate_probability_range(
