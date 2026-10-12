@@ -9,6 +9,8 @@ the selected stimuli, and saves the resulting study manifest.
 from pathlib import Path
 
 import pandas as pd
+import argparse
+
 
 from face_reconstruction.data.cfd_manifest import (
     harmonize_cfd_manifest,
@@ -49,6 +51,34 @@ MINIMUM_PERCEIVED_PROBABILITY = 0.9
 
 MINIMUM_PERCEIVED_GENDER = 0.9
 
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Build the standardized CFD stimulus table."
+    )
+
+    parser.add_argument(
+        "--workbook-path",
+        type=Path,
+        default=WORKBOOK_PATH,
+        help=f"CFD workbook path. Default: {WORKBOOK_PATH}",
+    )
+
+    parser.add_argument(
+        "--image-dir",
+        type=Path,
+        default=IMAGE_DIRECTORY,
+        help=f"CFD image directory. Default: {IMAGE_DIRECTORY}",
+    )
+
+    parser.add_argument(
+        "--output-path",
+        type=Path,
+        default=OUTPUT_PATH,
+        help=f"Stimulus CSV output path. Default: {OUTPUT_PATH}",
+    )
+
+    return parser.parse_args()
 
 def build_selection_summary(
     stimuli: pd.DataFrame,
@@ -186,12 +216,12 @@ def main() -> None:
     """
     Build, validate, and save the study-specific stimulus table.
     """
-
+    args = parse_arguments()
     if HARMONISED_MANIFEST_PATH.exists():
         manifest = pd.read_csv(HARMONISED_MANIFEST_PATH)
     else:
         raw_cfd_data = load_cfd_data(
-            workbook_path=WORKBOOK_PATH
+            workbook_path=args.workbook_path
         )
 
         manifest = harmonize_cfd_manifest(
@@ -209,7 +239,7 @@ def main() -> None:
 
     stimuli = build_stimuli_table(
         manifest=manifest,
-        image_directory=IMAGE_DIRECTORY,
+        image_directory=args.image_dir,
         genders=GENDERS,
         minimum_perceived_gender=MINIMUM_PERCEIVED_GENDER,
         ethnicities_self=ETHNICITIES_SELF,
@@ -230,7 +260,7 @@ def main() -> None:
 
     save_stimuli_outputs(
         stimuli=stimuli,
-        output_path=OUTPUT_PATH,
+        output_path=args.output_path,
     )
 
     print_stimuli_summary(
@@ -239,7 +269,7 @@ def main() -> None:
 
     print(
         "\nStimulus table saved to: "
-        f"{OUTPUT_PATH}"
+        f"{args.output_path}"
     )
 
 
