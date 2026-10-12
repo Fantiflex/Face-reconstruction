@@ -33,3 +33,75 @@ Weighted facial prototype
 ```
 
 The implementation separates experimental design, statistical modeling, facial geometry, reconstruction, diagnostics, and validation into reusable Python modules.
+
+
+
+## Method
+
+The reconstruction pipeline is organized as a sequence of reproducible steps.
+
+### 1. Audit the Chicago Face Database metadata
+
+`scripts/01_audit_cfd_manifest.py`
+
+Validates the available CFD metadata and image inventory before stimulus selection.
+
+### 2. Build the stimulus set
+
+`scripts/02_build_stimuli.py`
+
+Constructs the standardized candidate face set used throughout the experiment and reconstruction pipeline.
+
+### 3. Generate pairwise comparisons
+
+`scripts/03_generate_pairs.py`
+
+Creates balanced face pairs for participant judgments while controlling stimulus exposure across comparisons.
+
+### 4. Simulate participant responses
+
+`scripts/04_simulate_participants.py`
+
+Generates synthetic pairwise-choice data for testing and validating the statistical pipeline before collecting real participant responses.
+
+### 5. Estimate Bradley–Terry utilities
+
+`scripts/05_fit_bradley_terry.py`
+
+Fits a participant-specific Bradley–Terry model to pairwise choices and estimates one latent utility score per candidate face.
+
+These utilities are converted into reconstruction weights used in the final morph.
+
+### 6. Extract facial landmarks
+
+`scripts/06_extract_landmarks.py`
+
+Uses MediaPipe Face Landmarker to extract 478 facial landmarks from each stimulus image and performs landmark-level quality control.
+
+### 7. Visualize landmark quality
+
+`scripts/07_visualise_landmarks.py`
+
+Produces diagnostic overlays for manually inspecting landmark placement and identifying failed detections.
+
+### 8. Align faces
+
+`scripts/08_align_faces.py`
+
+Aligns faces to a shared coordinate system using eye-based similarity transforms so that geometry and texture can be meaningfully compared across stimuli.
+
+### 9. Build a common Delaunay topology
+
+`scripts/09_build_common_triangulation.py`
+
+Selects a stable subset of facial landmarks, adds boundary anchors, and computes a common Delaunay triangulation on the mean aligned facial shape.
+
+The same triangle topology is then validated across all aligned faces.
+
+### 10. Reconstruct the participant-specific facial prototype
+
+`scripts/10_morph_delaunay.py`
+
+Builds a weighted target facial shape, piecewise-affine warps each aligned face to that target geometry, and combines the warped textures using participant-specific reconstruction weights.
+
+The final output is a facial prototype representing the participant's latent preference structure.
