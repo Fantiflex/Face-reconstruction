@@ -1,4 +1,6 @@
 from typing import Any
+from scipy.spatial import Delaunay, QhullError
+
 
 import json
 import numpy as np
@@ -244,3 +246,60 @@ def validate_face_topology(
         ),
     }
 
+
+
+
+def build_delaunay_triangulation(
+    points: np.ndarray,
+    *,
+    min_triangle_area: float = 0.05,
+) -> np.ndarray:
+    """Build a counter-clockwise Delaunay triangulation."""
+
+    points = np.asarray(points, dtype=np.float64)
+
+    if points.ndim != 2 or points.shape[1] != 2:
+        raise ValueError("points must have shape (n_points, 2).")
+
+    if len(points) < 3:
+        raise ValueError("At least three points are required.")
+
+    if not np.isfinite(points).all():
+        raise ValueError("points must contain only finite coordinates.")
+
+    if min_triangle_area < 0:
+        raise ValueError("min_triangle_area cannot be negative.")
+
+    if len(np.unique(np.round(points, decimals=6), axis=0)) != len(points):
+        raise ValueError(
+            "points contain duplicates at 1e-6 precision."
+        )
+
+    try:
+        triangles = Delaunay(points).simplices.astype(np.int32)
+    except QhullError as error:
+        raise ValueError(
+            "Delaunay triangulation failed."
+        ) from error
+
+    triangles = orient_triangles_ccw(
+        points,
+        triangles,
+    )
+
+    areas = signed_double_areas(
+        points,
+        triangles,
+    ) / 2.0
+
+    if np.any(areas <= min_triangle_area):
+        count = int(
+            np.sum(areas <= min_triangle_area)
+        )
+
+        raise ValueError(
+            f"Triangulation contains {count} triangles "
+            f"at or below {min_triangle_area} px²."
+        )
+
+    return triangles

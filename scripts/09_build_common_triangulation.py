@@ -10,7 +10,6 @@ from typing import Any
 import cv2
 import numpy as np
 import pandas as pd
-from scipy.spatial import Delaunay, QhullError
 
 
 from face_reconstruction.geometry.triangulation import (
@@ -19,9 +18,9 @@ from face_reconstruction.geometry.triangulation import (
     IRIS_INDICES,
     boundary_points,
     build_selected_landmark_indices,
-    orient_triangles_ccw,
-    signed_double_areas,
     validate_face_topology,
+    build_delaunay_triangulation,
+    signed_double_areas,
 )
 
 
@@ -224,20 +223,18 @@ def main() -> int:
     selected_mean_landmarks = mean_landmarks[selected_indices]
     anchors = boundary_points(width, height, args.boundary_margin)
     common_points = np.vstack([selected_mean_landmarks, anchors])
-    if len(np.unique(np.round(common_points, decimals=6), axis=0)) != len(common_points):
-        raise ValueError("Common points contain duplicates at 1e-6 pixel precision.")
-    try:
-        triangles = Delaunay(common_points).simplices.astype(np.int32)
-    except QhullError as error:
-        raise RuntimeError(f"Delaunay triangulation failed: {error}") from error
-    triangles = orient_triangles_ccw(common_points, triangles)
-    mean_areas = signed_double_areas(common_points, triangles) / 2.0
-    if np.any(mean_areas <= args.min_mean_triangle_area):
-        count = int(np.sum(mean_areas <= args.min_mean_triangle_area))
-        raise ValueError(
-            f"Mean triangulation contains {count} triangles at or below "
-            f"{args.min_mean_triangle_area} px²."
+    triangles = build_delaunay_triangulation(
+        common_points,
+        min_triangle_area=args.min_mean_triangle_area,
+    )
+
+    mean_areas = (
+        signed_double_areas(
+            common_points,
+            triangles,
         )
+        / 2.0
+    )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     points_path = output_dir / "common_points.npy"
