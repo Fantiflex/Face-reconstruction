@@ -476,7 +476,7 @@ def process_stimulus(
         )
 
     qc_pass, qc_reason = validate_landmarks(
-        existing,
+        landmarks,
         image.shape,
         expected_n=expected_n,
     )
