@@ -24,6 +24,13 @@ from face_reconstruction.reconstruction.weighting import (
     softmax_weights,
 )
 
+from face_reconstruction.reconstruction.morph import (
+    accumulate_weighted_warp,
+    build_target_points,
+    finalize_weighted_reconstruction,
+)
+
+
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
 DEFAULT_TRIANGULATION_DIR = Path("data/interim/common_triangulation")
 DEFAULT_BT_OUTPUT_DIR = Path("data/results/morphing/bradley_terry")
@@ -986,10 +993,13 @@ def main() -> int:
             relative_area_tolerance=args.relative_area_tolerance,
             maximum_condition_number=args.max_affine_condition_number,
         )
-        reconstruction_numerator[covered] += (
-            weight * warped[covered].astype(np.float64)
+        accumulate_weighted_warp(
+            reconstruction_numerator,
+            reconstruction_denominator,
+            warped,
+            covered,
+            weight,
         )
-        reconstruction_denominator[covered] += weight
         fallback_texture += weight * image.astype(np.float64)
 
         for item in skipped:
@@ -1023,27 +1033,17 @@ def main() -> int:
             }
         )
 
-    covered_globally = reconstruction_denominator > 0.0
-    if not covered_globally.any():
-        raise RuntimeError("No output pixel is covered by a positive-weight face.")
-    uncovered_fraction = float(1.0 - covered_globally.mean())
-    if uncovered_fraction > args.max_uncovered_fraction:
-        raise RuntimeError(
-            "No valid source face covers too many output pixels: "
-            f"{uncovered_fraction:.6f} exceeds "
-            f"{args.max_uncovered_fraction:.6f}."
-        )
-
-    reconstruction = np.zeros_like(
-        reconstruction_numerator, dtype=np.float64
+    (
+    reconstruction,
+        covered_globally,
+        uncovered_fraction,
+    ) = finalize_weighted_reconstruction(
+        reconstruction_numerator,
+        reconstruction_denominator,
+        fallback_texture,
+        max_uncovered_fraction=args.max_uncovered_fraction,
     )
-    reconstruction[covered_globally] = (
-        reconstruction_numerator[covered_globally]
-        / reconstruction_denominator[covered_globally, None]
-    )
-    if (~covered_globally).any():
-        reconstruction[~covered_globally] = fallback_texture[~covered_globally]
-
+    
     result = np.clip(np.rint(reconstruction), 0, 255).astype(np.uint8)
     if not cv2.imwrite(str(reconstruction_path), result):
         raise OSError(

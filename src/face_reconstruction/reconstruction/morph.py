@@ -91,3 +91,124 @@ def build_target_points(
     )
 
     return target_landmarks, target_points
+
+
+def accumulate_weighted_warp(
+    numerator: np.ndarray,
+    denominator: np.ndarray,
+    warped: np.ndarray,
+    covered: np.ndarray,
+    weight: float,
+) -> None:
+    """Accumulate one warped face into a locally weighted reconstruction."""
+
+    if numerator.ndim != 3:
+        raise ValueError("numerator must be a 3D image array.")
+
+    if denominator.shape != numerator.shape[:2]:
+        raise ValueError(
+            "denominator shape must match numerator spatial dimensions."
+        )
+
+    if warped.shape != numerator.shape:
+        raise ValueError(
+            "warped image shape must match numerator shape."
+        )
+
+    if covered.shape != numerator.shape[:2]:
+        raise ValueError(
+            "covered mask shape must match image dimensions."
+        )
+
+    if not np.isfinite(weight) or weight < 0:
+        raise ValueError(
+            "weight must be finite and non-negative."
+        )
+
+    numerator[covered] += (
+        weight * warped[covered].astype(np.float64)
+    )
+
+    denominator[covered] += weight
+
+
+
+def finalize_weighted_reconstruction(
+    numerator: np.ndarray,
+    denominator: np.ndarray,
+    fallback_texture: np.ndarray,
+    *,
+    max_uncovered_fraction: float,
+) -> tuple[np.ndarray, np.ndarray, float]:
+    """Normalize accumulated warped textures pixel by pixel."""
+
+    numerator = np.asarray(
+        numerator,
+        dtype=np.float64,
+    )
+    denominator = np.asarray(
+        denominator,
+        dtype=np.float64,
+    )
+    fallback_texture = np.asarray(
+        fallback_texture,
+        dtype=np.float64,
+    )
+
+    if numerator.ndim != 3:
+        raise ValueError(
+            "numerator must be a 3D image array."
+        )
+
+    if denominator.shape != numerator.shape[:2]:
+        raise ValueError(
+            "denominator shape must match numerator."
+        )
+
+    if fallback_texture.shape != numerator.shape:
+        raise ValueError(
+            "fallback_texture must match numerator shape."
+        )
+
+    if not 0.0 <= max_uncovered_fraction <= 1.0:
+        raise ValueError(
+            "max_uncovered_fraction must be between 0 and 1."
+        )
+
+    covered = denominator > 0.0
+
+    if not covered.any():
+        raise RuntimeError(
+            "No output pixel is covered by a positive-weight face."
+        )
+
+    uncovered_fraction = float(
+        1.0 - covered.mean()
+    )
+
+    if uncovered_fraction > max_uncovered_fraction:
+        raise RuntimeError(
+            "Too many reconstruction pixels are uncovered: "
+            f"{uncovered_fraction:.6f}."
+        )
+
+    reconstruction = np.zeros_like(
+        numerator,
+        dtype=np.float64,
+    )
+
+    reconstruction[covered] = (
+        numerator[covered]
+        / denominator[covered, None]
+    )
+
+    if (~covered).any():
+        reconstruction[~covered] = (
+            fallback_texture[~covered]
+        )
+
+    return (
+        reconstruction,
+        covered,
+        uncovered_fraction,
+    )
