@@ -16,6 +16,13 @@ from face_reconstruction.geometry.warping import (
     warp_piecewise_affine,
 )
 
+from face_reconstruction.reconstruction.morph import (
+    build_target_points,
+)
+
+from face_reconstruction.reconstruction.weighting import (
+    softmax_weights,
+)
 
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
 DEFAULT_TRIANGULATION_DIR = Path("data/interim/common_triangulation")
@@ -274,23 +281,6 @@ def require_columns(
         raise ValueError(f"{table_name} is missing columns: {sorted(missing)}")
 
 
-def softmax(values: np.ndarray, temperature: float) -> np.ndarray:
-    """Return a numerically stable softmax distribution."""
-    values = np.asarray(values, dtype=np.float64)
-    if values.ndim != 1 or values.size == 0:
-        raise ValueError("Softmax requires a non-empty one-dimensional array.")
-    if not np.isfinite(values).all():
-        raise ValueError("Bradley-Terry scores contain non-finite values.")
-    if not np.isfinite(temperature) or temperature <= 0.0:
-        raise ValueError("--temperature must be finite and strictly positive.")
-
-    scaled = values / float(temperature)
-    shifted = scaled - np.max(scaled)
-    exponentials = np.exp(shifted)
-    denominator = float(exponentials.sum(dtype=np.float64))
-    if not np.isfinite(denominator) or denominator <= 0.0:
-        raise ValueError("Softmax normalization failed.")
-    return exponentials / denominator
 
 
 def load_bradley_terry_weights(
@@ -418,7 +408,7 @@ def load_bradley_terry_weights(
             raise ValueError("Precomputed Bradley-Terry weights sum to zero.")
         normalized = raw_values / total
     else:
-        normalized = softmax(raw_values, temperature)
+        normalized = softmax_weights(raw_values, temperature)
 
     if not np.isfinite(normalized).all() or np.any(normalized < 0.0):
         raise ValueError("Normalized Bradley-Terry weights are invalid.")
@@ -906,9 +896,16 @@ def main() -> int:
         raise ValueError(
             f"Weight vector has shape {weights.shape}; expected {(n_faces,)}."
         )
-    landmark_stack = np.stack([item[4] for item in loaded], axis=0)
-    target_landmarks = np.tensordot(weights, landmark_stack, axes=(0, 0))
-    target_points = np.vstack([target_landmarks, anchors])
+    landmark_stack = np.stack(
+        [item[4] for item in loaded],
+        axis=0,
+    )
+
+    target_landmarks, target_points = build_target_points(
+        landmark_stack,
+        weights,
+        anchors,
+    )
     if target_points.shape != common_points.shape:
         raise ValueError(
             f"Target-point shape {target_points.shape} does not match common "
