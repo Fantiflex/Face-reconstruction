@@ -248,6 +248,13 @@ def save_stimuli_outputs(
 
 def print_stimuli_summary(
     stimuli: pd.DataFrame,
+    *,
+    genders: list[str] | None,
+    ethnicities_self: list[str] | None,
+    ethnicities_perceived: list[str] | None,
+    ethnicity_selection_mode: str,
+    minimum_perceived_probability: float | None,
+    minimum_perceived_gender: float | None,
 ) -> None:
     """
     Print a summary of the selected experimental stimuli.
@@ -260,6 +267,28 @@ def print_stimuli_summary(
 
     print("\nStimulus selection")
     print("------------------")
+    print("\nSelection criteria:")
+    print(f"- genders: {genders or 'all'}")
+    print(
+        "- self-reported ethnicities: "
+        f"{ethnicities_self or 'all'}"
+    )
+    print(
+        "- perceived ethnicities: "
+        f"{ethnicities_perceived or 'all'}"
+    )
+    print(
+        "- ethnicity selection mode: "
+        f"{ethnicity_selection_mode}"
+    )
+    print(
+        "- minimum perceived ethnicity probability: "
+        f"{minimum_perceived_probability}"
+    )
+    print(
+        "- minimum perceived gender probability: "
+        f"{minimum_perceived_gender}"
+    )
     print(
         f"Selected stimuli: {len(stimuli)}"
     )
@@ -314,21 +343,26 @@ def main() -> None:
             index=False,
         )
 
+    genders = normalise_cli_selection(
+        args.genders
+    )
+
+    ethnicities_self = normalise_cli_selection(
+        args.ethnicities_self
+    )
+
+    ethnicities_perceived = normalise_cli_selection(
+        args.ethnicities_perceived
+    )
+
+
     stimuli = build_stimuli_table(
         manifest=manifest,
         image_directory=args.image_dir,
-        genders=normalise_cli_selection(
-            args.genders
-        ),
-        minimum_perceived_gender=(
-            args.min_perceived_gender
-        ),
-        ethnicities_self=normalise_cli_selection(
-            args.ethnicities_self
-        ),
-        ethnicities_perceived=normalise_cli_selection(
-            args.ethnicities_perceived
-        ),
+        genders=genders,
+        minimum_perceived_gender=args.min_perceived_gender,
+        ethnicities_self=ethnicities_self,
+        ethnicities_perceived=ethnicities_perceived,
         minimum_perceived_probability=(
             args.min_perceived_probability
         ),
@@ -346,7 +380,19 @@ def main() -> None:
     )
 
     print_stimuli_summary(
-        stimuli
+        stimuli,
+        genders=genders,
+        ethnicities_self=ethnicities_self,
+        ethnicities_perceived=ethnicities_perceived,
+        ethnicity_selection_mode=(
+            args.ethnicity_selection_mode
+        ),
+        minimum_perceived_probability=(
+            args.min_perceived_probability
+        ),
+        minimum_perceived_gender=(
+            args.min_perceived_gender
+        ),
     )
 
     print(
