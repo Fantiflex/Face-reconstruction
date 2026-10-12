@@ -1,32 +1,35 @@
-# Face_Reconstruction
+# Face Reconstruction
 
+A research pipeline for reconstructing participant-specific facial prototypes from pairwise preference judgments.
 
-Objectif principal
+The project estimates latent preferences over a standardized set of faces using a Bradley–Terry model and transforms these estimates into reconstruction weights. Facial geometry is extracted with MediaPipe Face Landmarker, aligned to a common coordinate system, and reconstructed using a shared Delaunay triangulation with piecewise-affine warping.
 
-À partir d’une série de choix binaires entre deux visages, estimer une
-fonction de préférence individuelle sur un ensemble de visages candidats.
+## Overview
 
-Entrée
+The pipeline is designed to answer the following question:
 
-- un ensemble standardisé de visages ;
-- une liste de comparaisons par paires ;
-- pour chaque comparaison, le visage sélectionné ;
-- les métadonnées du participant et de l’essai.
+**Given a participant's repeated choices between pairs of faces, what facial prototype best represents their latent preference structure?**
 
-Sortie
+The full pipeline is:
 
-- un score Bradley–Terry par visage ;
-- une incertitude associée aux scores ;
-- un classement des visages ;
-- des poids utilisables pour une reconstruction faciale ;
-- des diagnostics de qualité et d’identifiabilité.
+```text
+Pairwise face judgments
+        ↓
+Bradley–Terry latent utilities
+        ↓
+Participant-specific reconstruction weights
+        ↓
+MediaPipe facial landmarks
+        ↓
+Similarity alignment
+        ↓
+Stable landmark selection
+        ↓
+Common Delaunay triangulation
+        ↓
+Piecewise-affine warping
+        ↓
+Weighted facial prototype
+```
 
-Unité d’analyse
-
-Un participant observant plusieurs paires de visages.
-
-Hypothèse initiale
-
-La probabilité de sélectionner le visage i plutôt que le visage j dépend
-de la différence entre leurs scores latents.
-
+The implementation separates experimental design, statistical modeling, facial geometry, reconstruction, diagnostics, and validation into reusable Python modules.
