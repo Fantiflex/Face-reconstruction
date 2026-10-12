@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from face_reconstruction.bradley_terry import (
+from face_reconstruction.models.bradley_terry import (
     add_softmax_weights,
     estimate_standard_errors,
     estimate_theta,

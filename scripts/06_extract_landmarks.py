@@ -11,7 +11,7 @@ import mediapipe as mp
 import numpy as np
 import pandas as pd
 
-from face_reconstruction.landmarks import (
+from face_reconstruction.geometry.landmarks import (
     LANDMARK_COUNT,
     save_landmarks,
     validate_landmarks,

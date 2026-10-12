@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from face_reconstruction.simulation import (
+from face_reconstruction.experiment.simulation import (
     generate_latent_scores,
     simulate_responses,
 )

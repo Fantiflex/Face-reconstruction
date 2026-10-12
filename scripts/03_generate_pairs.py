@@ -14,7 +14,7 @@ from face_reconstruction.diagnostics import (
     compute_appearance_counts,
     compute_exposure_imbalance,
 )
-from face_reconstruction.pairs import (
+from face_reconstruction.experiment.pairs import (
     add_pair_ids,
     generate_all_pairs,
     generate_balanced_pairs,
