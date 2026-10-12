@@ -6,6 +6,7 @@ participant responses, and saves both the ground truth and synthetic response
 data for model-validation experiments.
 """
 
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -263,13 +264,51 @@ def print_simulation_summary(
     )
 
 
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Simulate participant choices under a Bradley-Terry model."
+    )
+
+    parser.add_argument(
+        "--pairs-path",
+        type=Path,
+        default=PAIRS_PATH,
+        help=f"Pair CSV path. Default: {PAIRS_PATH}",
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=OUTPUT_DIRECTORY,
+        help=f"Simulation output directory. Default: {OUTPUT_DIRECTORY}",
+    )
+
+    parser.add_argument(
+        "--n-participants",
+        type=int,
+        default=N_PARTICIPANTS,
+        help=(
+            "Number of participants to simulate. "
+            f"Default: {N_PARTICIPANTS}"
+        ),
+    )
+
+    parser.add_argument(
+        "--random-state",
+        type=int,
+        default=RANDOM_STATE,
+        help=f"Random seed. Default: {RANDOM_STATE}",
+    )
+
+    return parser.parse_args()
+
 def main() -> None:
     """
     Generate and save a reproducible synthetic Bradley-Terry dataset.
     """
-
+    args = parse_arguments()
     pairs = load_pairs(
-        PAIRS_PATH
+        args.pairs_path
     )
 
     face_ids = extract_face_ids(
@@ -279,7 +318,7 @@ def main() -> None:
     latent_scores = (
         generate_latent_scores(
             face_ids=face_ids,
-            random_state=RANDOM_STATE,
+            random_state=args.random_state,
         )
     )
 
@@ -287,17 +326,24 @@ def main() -> None:
         simulate_multiple_participants(
             pairs=pairs,
             latent_scores=latent_scores,
-            n_participants=N_PARTICIPANTS,
-            random_state=RANDOM_STATE,
+            n_participants=args.n_participants,
+            random_state=args.random_state,
         )
     )
 
     save_simulation_outputs(
         latent_scores=latent_scores,
         responses=responses,
-        output_directory=OUTPUT_DIRECTORY,
+        output_directory=args.output_dir,
     )
+    print("\nSimulation configuration")
 
+    print("------------------------")
+    print(f"- pairs path: {args.pairs_path}")
+    print(f"- participants: {args.n_participants}")
+    print(f"- random state: {args.random_state}")
+    print(f"- output directory: {args.output_dir}")
+    
     print_simulation_summary(
         latent_scores=latent_scores,
         responses=responses,
@@ -305,7 +351,7 @@ def main() -> None:
 
     print(
         "\nSimulation outputs saved to: "
-        f"{OUTPUT_DIRECTORY}"
+        f"{args.output_dir}"
     )
 
 
