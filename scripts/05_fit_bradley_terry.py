@@ -6,6 +6,7 @@ preferences for each participant, computes ranks and softmax reconstruction
 weights, builds diagnostic tables, and saves all model outputs.
 """
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -476,19 +477,88 @@ def print_recovery_summary(
         .round(3)
     )
 
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Fit participant-specific Bradley-Terry models."
+    )
+
+    parser.add_argument(
+        "--responses-path",
+        type=Path,
+        default=RESPONSES_PATH,
+        help=f"Participant response CSV. Default: {RESPONSES_PATH}",
+    )
+
+    parser.add_argument(
+        "--stimuli-path",
+        type=Path,
+        default=STIMULI_PATH,
+        help=f"Stimulus CSV. Default: {STIMULI_PATH}",
+    )
+
+    parser.add_argument(
+        "--true-scores-path",
+        type=Path,
+        default=TRUE_SCORES_PATH,
+        help=(
+            "Optional ground-truth latent-score CSV used for "
+            "simulation recovery diagnostics. "
+            f"Default: {TRUE_SCORES_PATH}"
+        ),
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=OUTPUT_DIRECTORY,
+        help=f"Model output directory. Default: {OUTPUT_DIRECTORY}",
+    )
+
+    parser.add_argument(
+        "--regularization",
+        type=float,
+        default=REGULARIZATION,
+        help=(
+            "L2 regularization strength for Bradley-Terry fitting. "
+            f"Default: {REGULARIZATION}"
+        ),
+    )
+
+    parser.add_argument(
+        "--softmax-temperature",
+        type=float,
+        default=SOFTMAX_TEMPERATURE,
+        help=(
+            "Temperature used to convert latent utilities into "
+            "reconstruction weights. "
+            f"Default: {SOFTMAX_TEMPERATURE}"
+        ),
+    )
+
+    return parser.parse_args()
+
 
 def main() -> None:
     """
     Fit all participant models and save estimates and diagnostics.
     """
+    args = parse_arguments()
+
+    print("\nBradley-Terry configuration")
+    print("--------------------------")
+    print(f"- responses path: {args.responses_path}")
+    print(f"- stimuli path: {args.stimuli_path}")
+    print(f"- regularization: {args.regularization}")
+    print(f"- softmax temperature: {args.softmax_temperature}")
+    print(f"- output directory: {args.output_dir}")
 
     responses = load_csv(
-        path=RESPONSES_PATH,
+        path=args.responses_path,
         dataset_name="Response table",
     )
 
     stimuli = load_csv(
-        path=STIMULI_PATH,
+        path=args.stimuli_path,
         dataset_name="Stimulus table",
     )
 
@@ -498,9 +568,9 @@ def main() -> None:
 
     scores = fit_all_participants(
         responses=responses,
-        regularization=REGULARIZATION,
+        regularization=args.regularization,
         softmax_temperature=(
-            SOFTMAX_TEMPERATURE
+            args.softmax_temperature
         ),
     )
 
@@ -514,9 +584,9 @@ def main() -> None:
 
     recovery_report = None
 
-    if TRUE_SCORES_PATH.exists():
+    if args.true_scores_path.exists():
         true_scores = load_csv(
-            path=TRUE_SCORES_PATH,
+            path=args.true_scores_path,
             dataset_name=(
                 "Ground-truth score table"
             ),
@@ -536,7 +606,7 @@ def main() -> None:
         scores=scores,
         diagnostics=diagnostics,
         recovery_report=recovery_report,
-        output_directory=OUTPUT_DIRECTORY,
+        output_directory=args.output_dir,
     )
 
     print_model_summary(
@@ -546,7 +616,7 @@ def main() -> None:
 
     print(
         "\nModel outputs saved to: "
-        f"{OUTPUT_DIRECTORY}"
+        f"{args.output_dir}"
     )
     
     recovery_summary = summarise_recovery(
@@ -554,7 +624,7 @@ def main() -> None:
     )
 
     recovery_summary.to_csv(
-        OUTPUT_DIRECTORY / "score_recovery_summary.csv",
+        args.output_dir / "score_recovery_summary.csv",
         index=False,
     )
 
