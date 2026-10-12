@@ -277,3 +277,95 @@ python -m ruff check src scripts tests
 ```
 
 The same checks are executed automatically by GitHub Actions on pushes and pull requests.
+
+
+
+## Data
+
+The repository does not distribute the Chicago Face Database (CFD) images or associated licensed source files.
+
+Users must obtain the CFD separately and place the required source files under the local `data/raw/` directory before running the preprocessing pipeline.
+
+The repository also does not version:
+
+- raw participant response data;
+- generated intermediate arrays and manifests;
+- reconstructed images;
+- downloaded MediaPipe model files;
+- other large or derived artifacts.
+
+These files are excluded from version control and are regenerated locally by the pipeline.
+
+A typical local data layout is:
+
+```text
+data/
+├── raw/
+│   └── cfd/
+├── interim/
+│   ├── cfd_audit/
+│   ├── aligned_faces/
+│   └── common_triangulation/
+├── processed/
+│   ├── stimuli.csv
+│   └── pairs.csv
+├── simulated/
+│   ├── true_latent_scores.csv
+│   └── simulated_responses.csv
+└── results/
+    └── morphing/
+```
+
+Exact contents may vary depending on whether the pipeline is run with simulated or experimental participant data.
+
+## Outputs
+
+### Stimulus and experimental-design outputs
+
+The preprocessing and experiment-design stages produce:
+
+- a standardized stimulus table;
+- balanced pairwise comparisons;
+- exposure and design diagnostics;
+- optional simulated participant responses.
+
+### Bradley–Terry outputs
+
+Participant responses are converted into participant-specific latent utilities.
+
+Typical outputs include:
+
+- one latent utility estimate per face;
+- uncertainty estimates;
+- face rankings;
+- reconstruction weights;
+- diagnostics for comparison-graph connectivity and score recovery.
+
+### Geometry outputs
+
+The facial-geometry stages produce:
+
+- MediaPipe facial landmark arrays;
+- landmark QC diagnostics and visualizations;
+- aligned facial images and landmark coordinates;
+- a common Delaunay topology;
+- topology-QC manifests.
+
+### Reconstruction outputs
+
+The final reconstruction stage produces:
+
+- the participant-specific reconstructed face;
+- the weighted target landmark configuration;
+- the target topology points including boundary anchors;
+- the weights used for the reconstruction;
+- triangle-level QC diagnostics;
+- a JSON configuration describing the reconstruction run.
+
+Optional individual warped faces can also be saved for quality control.
+
+## Reproducibility
+
+Derived files under `data/interim/`, `data/processed/`, `data/simulated/`, and `data/results/` are intended to be reproducible from the source data and pipeline configuration rather than maintained as source-controlled artifacts.
+
+The codebase separates reusable scientific logic from executable scripts so that individual stages can be tested independently while preserving a reproducible end-to-end workflow.
