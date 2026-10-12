@@ -21,6 +21,7 @@ from face_reconstruction.geometry.alignment import (
     transform_landmarks,
 )
 
+from face_reconstruction.utils.io import parse_bool
 
 DEFAULT_MANIFEST_PATH = Path(
     "data/interim/landmarks_mediapipe/landmarks_manifest.csv"
@@ -149,18 +150,6 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
         raise ValueError("--eye-error-tolerance cannot be negative.")
 
 
-def parse_boolean_series(series: pd.Series) -> pd.Series:
-    if pd.api.types.is_bool_dtype(series):
-        return series.fillna(False)
-    if pd.api.types.is_numeric_dtype(series):
-        return series.fillna(0).astype(int).eq(1)
-    return (
-        series.astype(str)
-        .str.strip()
-        .str.lower()
-        .isin({"true", "1", "yes", "y", "oui"})
-    )
-
 
 def read_manifest(
     manifest_path: Path,
@@ -196,7 +185,7 @@ def read_manifest(
 
     if "qc_pass" not in manifest.columns:
         manifest["qc_pass"] = True
-    manifest["qc_pass"] = parse_boolean_series(manifest["qc_pass"])
+    manifest["qc_pass"] = parse_bool(manifest["qc_pass"])
 
     eligible = (
         manifest["image_path"].str.strip().ne("")

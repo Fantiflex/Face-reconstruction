@@ -17,6 +17,8 @@ from face_reconstruction.geometry.landmarks import (
     validate_landmarks,
 )
 
+from face_reconstruction.utils.io import parse_bool
+
 DEFAULT_STIMULI_PATH = Path("data/processed/stimuli.csv")
 DEFAULT_OUTPUT_DIR = Path("data/interim/landmarks_mediapipe")
 DEFAULT_MODEL_PATH = Path("models/face_landmarker.task")
@@ -126,18 +128,6 @@ def validate_arguments(arguments: argparse.Namespace) -> None:
             raise ValueError(f"{flag} must be between 0 and 1.")
 
 
-def parse_boolean_series(series: pd.Series) -> pd.Series:
-    if pd.api.types.is_bool_dtype(series):
-        return series.fillna(False)
-    if pd.api.types.is_numeric_dtype(series):
-        return series.fillna(0).astype(int).eq(1)
-    return (
-        series.astype(str)
-        .str.strip()
-        .str.lower()
-        .isin({"true", "1", "yes", "y", "oui"})
-    )
-
 
 def read_stimuli(
     stimuli_path: Path,
@@ -163,7 +153,7 @@ def read_stimuli(
                 "--all-stimuli is used."
             )
         stimuli = stimuli.loc[
-            parse_boolean_series(stimuli["selected_for_study"])
+            parse_bool(stimuli["selected_for_study"])
         ].copy()
 
     stimuli["face_id"] = stimuli["face_id"].astype(str)
