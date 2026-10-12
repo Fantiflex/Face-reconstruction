@@ -8,6 +8,7 @@ probabilities, and saves audit tables for reproducibility.
 from pathlib import Path
 
 import pandas as pd
+import argparse
 
 from face_reconstruction.data.cfd_manifest import (
     harmonize_cfd_manifest,
@@ -22,6 +23,28 @@ OUTPUT_DIRECTORY = Path(
     "data/interim/cfd_audit"
 )
 
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Audit and harmonise the Chicago Face Database manifest."
+    )
+
+    parser.add_argument(
+        "--workbook-path",
+        type=Path,
+        default=WORKBOOK_PATH,
+        help=f"CFD workbook path. Default: {WORKBOOK_PATH}",
+    )
+
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=OUTPUT_DIRECTORY,
+        help=f"Directory for audit outputs. Default: {OUTPUT_DIRECTORY}",
+    )
+
+    return parser.parse_args()
 
 def build_demographic_counts(
     manifest: pd.DataFrame,
@@ -284,9 +307,9 @@ def main() -> None:
     """
     Run the complete CFD manifest audit.
     """
-
+    args = parse_arguments()
     raw_cfd_data = load_cfd_data(
-        workbook_path=WORKBOOK_PATH
+        workbook_path=args.workbook_path
     )
 
     manifest = harmonize_cfd_manifest(
@@ -299,14 +322,18 @@ def main() -> None:
 
     save_audit_outputs(
         manifest=manifest,
-        output_directory=OUTPUT_DIRECTORY,
+        output_directory=args.output_dir,
     )
 
     print(
         "\nAudit outputs saved to: "
-        f"{OUTPUT_DIRECTORY}"
+        f"{args.output_dir}"
     )
 
 
 if __name__ == "__main__":
     main()
+
+
+
+
