@@ -6,6 +6,7 @@ face pairs, randomises left-right presentation, validates the comparison
 design, and saves pair-level diagnostics.
 """
 
+import argparse
 from pathlib import Path
 
 import pandas as pd
@@ -261,13 +262,61 @@ def print_pair_summary(
         print(f"- {metric}: {value}")
 
 
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate reproducible pairwise face comparisons."
+    )
+
+    parser.add_argument(
+        "--stimuli-path",
+        type=Path,
+        default=STIMULI_PATH,
+        help=f"Stimulus CSV path. Default: {STIMULI_PATH}",
+    )
+
+    parser.add_argument(
+        "--output-path",
+        type=Path,
+        default=OUTPUT_PATH,
+        help=f"Pair CSV output path. Default: {OUTPUT_PATH}",
+    )
+
+    parser.add_argument(
+        "--method",
+        choices=["all", "sample", "balanced"],
+        default=PAIR_GENERATION_METHOD,
+        help=(
+            "Pair-generation method. "
+            f"Default: {PAIR_GENERATION_METHOD}"
+        ),
+    )
+
+    parser.add_argument(
+        "--n-pairs",
+        type=int,
+        default=N_PAIRS,
+        help=(
+            "Number of pairs for sampled or balanced designs. "
+            f"Default: {N_PAIRS}"
+        ),
+    )
+
+    parser.add_argument(
+        "--random-state",
+        type=int,
+        default=RANDOM_STATE,
+        help=f"Random seed. Default: {RANDOM_STATE}",
+    )
+
+    return parser.parse_args()
+
 def main() -> None:
     """
     Generate, validate, randomise, and save experimental face pairs.
     """
-
+    args = parse_arguments()
     stimuli = load_stimuli(
-        STIMULI_PATH
+        args.stimuli_path
     )
 
     face_ids = (
@@ -286,14 +335,14 @@ def main() -> None:
 
     pairs = generate_pairs(
         face_ids=face_ids,
-        method=PAIR_GENERATION_METHOD,
-        n_pairs=N_PAIRS,
-        random_state=RANDOM_STATE,
+        method=args.method,
+        n_pairs=args.n_pairs,
+        random_state=args.random_state,
     )
 
     pairs = randomise_pair_sides(
         pairs=pairs,
-        random_state=RANDOM_STATE,
+        random_state=args.random_state,  
     )
 
     pairs = add_pair_ids(
@@ -307,8 +356,15 @@ def main() -> None:
 
     save_pair_outputs(
         pairs=pairs,
-        output_path=OUTPUT_PATH,
+        output_path=args.output_path,
     )
+
+    print("\nPair-generation configuration")
+    print("-----------------------------")
+    print(f"- method: {args.method}")
+    print(f"- requested pairs: {args.n_pairs}")
+    print(f"- random state: {args.random_state}")
+    print(f"- stimuli path: {args.stimuli_path}")
 
     print_pair_summary(
         pairs
