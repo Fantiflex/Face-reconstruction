@@ -11,6 +11,11 @@ import mediapipe as mp
 import numpy as np
 import pandas as pd
 
+from face_reconstruction.landmarks import (
+    LANDMARK_COUNT,
+    save_landmarks,
+    validate_landmarks,
+)
 
 DEFAULT_STIMULI_PATH = Path("data/processed/stimuli.csv")
 DEFAULT_OUTPUT_DIR = Path("data/interim/landmarks_mediapipe")
@@ -19,7 +24,6 @@ DEFAULT_MODEL_URL = (
     "https://storage.googleapis.com/mediapipe-models/face_landmarker/"
     "face_landmarker/float16/latest/face_landmarker.task"
 )
-LANDMARK_COUNT = 478
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -315,65 +319,8 @@ def extract_landmarks_from_image(
     )
 
 
-def validate_mediapipe_landmarks(
-    landmarks: np.ndarray,
-    image_shape: tuple[int, ...],
-    *,
-    expected_n: int,
-) -> tuple[bool, str]:
-    """Basic numerical and anatomical checks for MediaPipe topology."""
-    landmarks = np.asarray(landmarks, dtype=np.float32)
-    if landmarks.shape != (expected_n, 2):
-        return False, "unexpected_shape"
-    if not np.isfinite(landmarks).all():
-        return False, "non_finite_coordinates"
-
-    image_height, image_width = image_shape[:2]
-    x = landmarks[:, 0]
-    y = landmarks[:, 1]
-    margin_x = 0.02 * image_width
-    margin_y = 0.02 * image_height
-    if (x < -margin_x).any() or (x > image_width - 1 + margin_x).any():
-        return False, "x_far_outside_image"
-    if (y < -margin_y).any() or (y > image_height - 1 + margin_y).any():
-        return False, "y_far_outside_image"
-
-    face_width = float(np.ptp(x))
-    face_height = float(np.ptp(y))
-    if face_width < 0.12 * image_width:
-        return False, "face_bbox_too_narrow"
-    if face_height < 0.12 * image_height:
-        return False, "face_bbox_too_short"
-    if face_width > 0.95 * image_width:
-        return False, "face_bbox_too_wide"
-    if face_height > 0.98 * image_height:
-        return False, "face_bbox_too_tall"
-
-    # Stable MediaPipe Face Mesh indices (valid for 468 and 478 points).
-    left_eye = landmarks[[33, 133, 159, 145]].mean(axis=0)
-    right_eye = landmarks[[362, 263, 386, 374]].mean(axis=0)
-    eyes_y = float((left_eye[1] + right_eye[1]) / 2.0)
-    interocular = float(np.linalg.norm(right_eye - left_eye))
-    if interocular < 0.08 * image_width:
-        return False, "interocular_distance_too_small"
-    if interocular > 0.55 * image_width:
-        return False, "interocular_distance_too_large"
-    if abs(float(left_eye[1] - right_eye[1])) > 0.20 * interocular:
-        return False, "eyes_excessively_tilted"
-
-    forehead_y = float(landmarks[10, 1])
-    nose_y = float(landmarks[1, 1])
-    mouth_y = float(landmarks[[13, 14], 1].mean())
-    chin_y = float(landmarks[152, 1])
-    if not forehead_y < eyes_y < nose_y < mouth_y < chin_y:
-        return False, "implausible_vertical_anatomy"
-
-    return True, "ok"
 
 
-def save_landmarks(landmarks: np.ndarray, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    np.save(path, np.asarray(landmarks, dtype=np.float32), allow_pickle=False)
 
 
 def make_manifest_row(
@@ -470,9 +417,11 @@ def process_stimulus(
     if landmark_path.exists() and not overwrite:
         try:
             existing = np.load(landmark_path, allow_pickle=False)
-            qc_pass, qc_reason = validate_mediapipe_landmarks(
-                existing, image.shape, expected_n=expected_n
-            )
+            qc_pass, qc_reason = validate_landmarks(
+                    existing,
+                    image.shape,
+                    expected_n=expected_n,
+                )
             return make_manifest_row(
                 **common,
                 **dimensions,
@@ -537,8 +486,10 @@ def process_stimulus(
             qc_reason="no_face_detected",
         )
 
-    qc_pass, qc_reason = validate_mediapipe_landmarks(
-        landmarks, image.shape, expected_n=expected_n
+    qc_pass, qc_reason = validate_landmarks(
+        existing,
+        image.shape,
+        expected_n=expected_n,
     )
     if qc_pass:
         # Very small excursions can occur through normalized coordinates.
