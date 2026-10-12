@@ -2,11 +2,16 @@ import numpy as np
 
 from .weighting import normalize_weights
 from pathlib import Path
+from typing import Any
 
 import cv2
 import pandas as pd
 
 from face_reconstruction.utils.io import resolve_path
+
+from face_reconstruction.geometry.warping import (
+    warp_piecewise_affine,
+)
 
 def weighted_mean_landmarks(
     landmarks: np.ndarray,
@@ -336,3 +341,178 @@ def load_reconstruction_inputs(
         )
 
     return loaded
+
+
+
+
+
+
+
+
+def reconstruct_weighted_face(
+    loaded_faces: list[
+        tuple[
+            str,
+            Path,
+            Path,
+            np.ndarray,
+            np.ndarray,
+            set[int],
+        ]
+    ],
+    weights: np.ndarray,
+    target_points: np.ndarray,
+    triangles: np.ndarray,
+    anchors: np.ndarray,
+    *,
+    interpolation: int,
+    border_mode: int,
+    minimum_absolute_area: float,
+    relative_area_tolerance: float,
+    maximum_condition_number: float,
+    max_uncovered_fraction: float,
+) -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    float,
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+]:
+    """Warp and combine aligned faces into one weighted reconstruction."""
+
+    weights = normalize_weights(weights)
+
+    if len(loaded_faces) != len(weights):
+        raise ValueError(
+            "Number of loaded faces and number of weights must match."
+        )
+
+    if len(loaded_faces) == 0:
+        raise ValueError(
+            "At least one face is required for reconstruction."
+        )
+
+    first_image = loaded_faces[0][3]
+
+    height, width = first_image.shape[:2]
+
+    reconstruction_numerator = np.zeros(
+        (height, width, 3),
+        dtype=np.float64,
+    )
+
+    reconstruction_denominator = np.zeros(
+        (height, width),
+        dtype=np.float64,
+    )
+
+    fallback_texture = np.zeros(
+        (height, width, 3),
+        dtype=np.float64,
+    )
+
+    weight_rows: list[dict[str, Any]] = []
+    skip_rows: list[dict[str, Any]] = []
+
+    for position, (
+        face_id,
+        image_path,
+        landmark_path,
+        image,
+        landmarks,
+        manifest_bad_triangles,
+    ) in enumerate(loaded_faces):
+
+        weight = float(weights[position])
+
+        source_points = np.vstack(
+            [
+                landmarks,
+                anchors,
+            ]
+        )
+
+        warped, covered, skipped = (
+            warp_piecewise_affine(
+                image,
+                source_points,
+                target_points,
+                triangles,
+                skipped_triangle_indices=manifest_bad_triangles,
+                interpolation=interpolation,
+                border_mode=border_mode,
+                minimum_absolute_area=minimum_absolute_area,
+                relative_area_tolerance=relative_area_tolerance,
+                maximum_condition_number=maximum_condition_number,
+            )
+        )
+
+        accumulate_weighted_warp(
+            reconstruction_numerator,
+            reconstruction_denominator,
+            warped,
+            covered,
+            weight,
+        )
+
+        fallback_texture += (
+            weight
+            * image.astype(np.float64)
+        )
+
+        for item in skipped:
+            skip_rows.append(
+                {
+                    "face_id": face_id,
+                    "triangle_index": int(
+                        item["triangle_index"]
+                    ),
+                    "reason": str(
+                        item["reason"]
+                    ),
+                    "original_face_weight": weight,
+                }
+            )
+
+        weight_rows.append(
+            {
+                "face_id": face_id,
+                "weight": weight,
+                "n_manifest_unstable_triangles": len(
+                    manifest_bad_triangles
+                ),
+                "n_runtime_skipped_triangles": len(
+                    skipped
+                ),
+                "covered_pixel_fraction": float(
+                    covered.mean()
+                ),
+                "aligned_image_path": (
+                    image_path.as_posix()
+                ),
+                "aligned_landmark_path": (
+                    landmark_path.as_posix()
+                ),
+            }
+        )
+
+    (
+        reconstruction,
+        covered_globally,
+        uncovered_fraction,
+    ) = finalize_weighted_reconstruction(
+        reconstruction_numerator,
+        reconstruction_denominator,
+        fallback_texture,
+        max_uncovered_fraction=max_uncovered_fraction,
+    )
+
+    return (
+        reconstruction,
+        covered_globally,
+        reconstruction_denominator,
+        uncovered_fraction,
+        weight_rows,
+        skip_rows,
+    )

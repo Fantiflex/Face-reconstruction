@@ -24,13 +24,6 @@ from face_reconstruction.reconstruction.weighting import (
     softmax_weights,
 )
 
-from face_reconstruction.reconstruction.morph import (
-    accumulate_weighted_warp,
-    build_target_points,
-    finalize_weighted_reconstruction,
-    load_reconstruction_inputs,
-)
-
 
 from face_reconstruction.utils.io import (
     parse_bool,
@@ -38,7 +31,12 @@ from face_reconstruction.utils.io import (
     sha256_arrays,
 )
 
+from face_reconstruction.reconstruction.morph import (
+    build_target_points,
+    load_reconstruction_inputs,
+    reconstruct_weighted_face,
 
+)
 
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
 DEFAULT_TRIANGULATION_DIR = Path("data/interim/common_triangulation")
@@ -897,95 +895,29 @@ def main() -> int:
         if args.border_mode == "reflect101"
         else cv2.BORDER_CONSTANT
     )
-    reconstruction_numerator = np.zeros(
-        (height, width, 3), dtype=np.float64
-    )
-    reconstruction_denominator = np.zeros(
-        (height, width), dtype=np.float64
-    )
-    fallback_texture = np.zeros((height, width, 3), dtype=np.float64)
-    if args.save_individual_warps:
-        warp_dir.mkdir(parents=True, exist_ok=True)
 
     weight_details = weight_table.set_index(
         face_id_column, drop=False
     )
-    weight_rows: list[dict[str, Any]] = []
-    skip_rows: list[dict[str, Any]] = []
-    for position, (
-        face_id,
-        image_path,
-        landmark_path,
-        image,
-        landmarks,
-        manifest_bad_triangles,
-    ) in enumerate(loaded, start=1):
-        weight = float(weights[position - 1])
-        print(
-            f"[{position:03d}/{n_faces:03d}] Warping {face_id} "
-            f"({args.weight_mode} weight={weight:.8f})"
-        )
-        source_points = np.vstack([landmarks, anchors])
-        warped, covered, skipped = warp_piecewise_affine(
-            image,
-            source_points,
-            target_points,
-            triangles,
-            skipped_triangle_indices=manifest_bad_triangles,
-            interpolation=interpolation,
-            border_mode=border_mode,
-            minimum_absolute_area=args.min_triangle_area,
-            relative_area_tolerance=args.relative_area_tolerance,
-            maximum_condition_number=args.max_affine_condition_number,
-        )
-        accumulate_weighted_warp(
-            reconstruction_numerator,
-            reconstruction_denominator,
-            warped,
-            covered,
-            weight,
-        )
-        fallback_texture += weight * image.astype(np.float64)
 
-        for item in skipped:
-            skip_rows.append(
-                {
-                    "face_id": face_id,
-                    "triangle_index": int(item["triangle_index"]),
-                    "reason": str(item["reason"]),
-                    "original_face_weight": weight,
-                }
-            )
-
-        if args.save_individual_warps:
-            saved_warp = np.clip(np.rint(warped), 0, 255).astype(np.uint8)
-            warp_path = warp_dir / f"{safe_filename(face_id)}.png"
-            if not cv2.imwrite(str(warp_path), saved_warp):
-                raise OSError(f"OpenCV could not save individual warp: {warp_path}")
-
-        weight_rows.append(
-            {
-                "face_id": face_id,
-                "weight_input_value": float(
-                    weight_details.loc[face_id, "weight_input_value"]
-                ),
-                "weight": weight,
-                "n_manifest_unstable_triangles": len(manifest_bad_triangles),
-                "n_runtime_skipped_triangles": len(skipped),
-                "covered_pixel_fraction": float(covered.mean()),
-                "aligned_image_path": image_path.as_posix(),
-                "aligned_landmark_path": landmark_path.as_posix(),
-            }
-        )
-
+    
     (
-    reconstruction,
+        reconstruction,
         covered_globally,
         uncovered_fraction,
-    ) = finalize_weighted_reconstruction(
-        reconstruction_numerator,
-        reconstruction_denominator,
-        fallback_texture,
+        weight_rows,
+        skip_rows,
+    ) = reconstruct_weighted_face(
+        loaded,
+        weights,
+        target_points,
+        triangles,
+        anchors,
+        interpolation=interpolation,
+        border_mode=border_mode,
+        minimum_absolute_area=args.min_triangle_area,
+        relative_area_tolerance=args.relative_area_tolerance,
+        maximum_condition_number=args.max_affine_condition_number,
         max_uncovered_fraction=args.max_uncovered_fraction,
     )
 
