@@ -10,19 +10,18 @@ from pathlib import Path
 
 import pandas as pd
 
+from face_reconstruction.diagnostics import (
+    build_diagnostic_table,
+    evaluate_score_recovery,
+)
 from face_reconstruction.models.bradley_terry import (
     add_softmax_weights,
     estimate_standard_errors,
     estimate_theta,
 )
-from face_reconstruction.diagnostics import (
-    build_diagnostic_table,
-    evaluate_score_recovery,
-)
 from face_reconstruction.validation import (
     validate_responses,
 )
-
 
 RESPONSES_PATH = Path(
     "data/simulated/simulated_responses.csv"

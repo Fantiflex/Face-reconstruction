@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import sys
 from pathlib import Path
@@ -11,20 +10,16 @@ import cv2
 import numpy as np
 import pandas as pd
 
-
 from face_reconstruction.geometry.triangulation import (
     EXCLUDED_LANDMARK_INDICES,
     INNER_LIP_INDICES,
     IRIS_INDICES,
     boundary_points,
-    build_selected_landmark_indices,
-    validate_face_topology,
     build_delaunay_triangulation,
+    build_selected_landmark_indices,
     signed_double_areas,
+    validate_face_topology,
 )
-
-
-
 from face_reconstruction.utils.io import (
     load_alignment_artifacts,
     resolve_path,
@@ -122,7 +117,13 @@ def draw_overlay(
         polygon = np.rint(points[triangle]).astype(np.int32).reshape((-1, 1, 2))
         cv2.polylines(overlay, [polygon], True, (0, 220, 0), thickness, cv2.LINE_AA)
     for x, y in points[:landmark_count]:
-        cv2.circle(overlay, (int(round(x)), int(round(y))), 1, (0, 80, 255), -1)
+        cv2.circle(
+            overlay,
+            (round(float(x)), round(float(y))),
+            1,
+            (0, 80, 255),
+            -1,
+        )
     return overlay
 
 
@@ -248,7 +249,7 @@ def main() -> int:
                     max_degenerate_fraction=args.max_degenerate_fraction,
                 )
 )
-        except Exception as error:
+        except (OSError, ValueError, TypeError) as error:
             result.update(
                 {
                     "topology_qc_reason": "processing_exception",
@@ -291,8 +292,8 @@ def main() -> int:
         "canvas_width": width,
         "canvas_height": height,
         "n_detected_landmarks": args.expected_landmarks,
-        "n_selected_landmarks": int(len(selected_indices)),
-        "n_excluded_landmarks": int(len(excluded_indices)),
+        "n_selected_landmarks": len(selected_indices),
+        "n_excluded_landmarks": len(excluded_indices),
         "selected_landmark_indices_file": selected_indices_path.name,
         "excluded_landmark_indices_file": excluded_indices_path.name,
         "inner_lip_indices_excluded": sorted(INNER_LIP_INDICES),

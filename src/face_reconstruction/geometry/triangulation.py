@@ -1,11 +1,8 @@
-from typing import Any
-from scipy.spatial import Delaunay, QhullError
-
-
 import json
+from typing import Any
+
 import numpy as np
-
-
+from scipy.spatial import Delaunay, QhullError
 
 # The 478-point Face Landmarker output remains untouched in steps 06-08.
 # For piecewise-affine morphing, we exclude points whose geometry varies for
@@ -211,7 +208,7 @@ def validate_face_topology(
         reasons.append("degenerate_triangles")
 
     return {
-        "n_triangles": int(len(triangles)),
+        "n_triangles": len(triangles),
         "n_flipped_triangles": int(flipped.sum()),
         "flipped_triangle_fraction": flipped_fraction,
         "flipped_triangle_indices": json.dumps(

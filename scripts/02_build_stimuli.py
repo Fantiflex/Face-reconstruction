@@ -21,7 +21,6 @@ from face_reconstruction.validation import (
     validate_stimuli,
 )
 
-
 WORKBOOK_PATH = Path(
     "data/raw/cfd/CFD_codebook.xlsx"
 )

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import sys
@@ -12,30 +11,17 @@ import cv2
 import numpy as np
 import pandas as pd
 
-from face_reconstruction.geometry.warping import (
-    warp_piecewise_affine,
-)
-
-from face_reconstruction.reconstruction.morph import (
-    build_target_points,
-)
-
-from face_reconstruction.reconstruction.weighting import (
-    softmax_weights,
-)
-
-
-from face_reconstruction.utils.io import (
-    parse_bool,
-    resolve_path,
-    sha256_arrays,
-)
-
 from face_reconstruction.reconstruction.morph import (
     build_target_points,
     load_reconstruction_inputs,
     reconstruct_weighted_face,
-
+)
+from face_reconstruction.reconstruction.weighting import (
+    softmax_weights,
+)
+from face_reconstruction.utils.io import (
+    parse_bool,
+    sha256_arrays,
 )
 
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
@@ -237,7 +223,7 @@ def parse_index_list(value: Any) -> set[int]:
     parsed = json.loads(str(value))
 
     if not isinstance(parsed, list):
-        raise ValueError(
+        raise TypeError(
             f"Expected a JSON list of triangle indices, got: {value!r}"
         )
 
@@ -723,9 +709,12 @@ def main() -> int:
         raise ValueError("--face-id-column cannot be empty.")
     if not participant_id_column:
         raise ValueError("--participant-id-column cannot be empty.")
-    if args.weight_mode == "bradley-terry" and weight_column is None:
-        if not score_column:
-            raise ValueError("--score-column cannot be empty.")
+    if (
+        args.weight_mode == "bradley-terry"
+        and weight_column is None
+        and not score_column
+    ):
+        raise ValueError("--score-column cannot be empty.")
     if weight_column == "":
         raise ValueError("--weight-column cannot be empty.")
 
@@ -896,14 +885,11 @@ def main() -> int:
         else cv2.BORDER_CONSTANT
     )
 
-    weight_details = weight_table.set_index(
-        face_id_column, drop=False
-    )
-
     
     (
         reconstruction,
         covered_globally,
+        reconstruction_denominator,
         uncovered_fraction,
         weight_rows,
         skip_rows,

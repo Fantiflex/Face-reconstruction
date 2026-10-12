@@ -16,7 +16,6 @@ from face_reconstruction.geometry.landmarks import (
     save_landmarks,
     validate_landmarks,
 )
-
 from face_reconstruction.utils.io import parse_bool
 
 DEFAULT_STIMULI_PATH = Path("data/processed/stimuli.csv")
@@ -428,7 +427,7 @@ def process_stimulus(
                 ),
                 reused_existing_file=True,
             )
-        except Exception as error:
+        except Exception as error:  # noqa: BLE001
             return make_manifest_row(
                 **common,
                 **dimensions,
@@ -448,7 +447,7 @@ def process_stimulus(
         landmarks, detection_count, selected_index = (
             extract_landmarks_from_image(detector, image)
         )
-    except Exception as error:
+    except Exception as error: # noqa: BLE001
         return make_manifest_row(
             **common,
             **dimensions,

@@ -6,6 +6,7 @@ from face_reconstruction.geometry.landmarks import (
     validate_landmarks,
 )
 
+
 def test_validate_landmarks_accepts_valid_array():
     landmarks = np.full((478, 2), [50.0, 50.0], dtype=float)
 

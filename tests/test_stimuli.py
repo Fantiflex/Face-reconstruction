@@ -2,6 +2,7 @@ from pathlib import Path
 
 from face_reconstruction.data.stimuli import build_image_index
 
+
 def test_build_image_index(tmp_path: Path):
     image_path = tmp_path / "CFD-BF-007-001-N.jpg"
     image_path.write_bytes(b"test")

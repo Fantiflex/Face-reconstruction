@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+
 LANDMARK_COUNT = 478
 
 def validate_landmarks(

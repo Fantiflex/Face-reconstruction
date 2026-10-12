@@ -1,6 +1,5 @@
 import numpy as np
 
-
 EYE_GROUP_A = np.array([33, 133, 159, 145], dtype=np.int32)
 EYE_GROUP_B = np.array([362, 263, 386, 374], dtype=np.int32)
 

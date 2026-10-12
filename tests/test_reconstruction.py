@@ -1,6 +1,7 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
-from pathlib import Path
 
 from face_reconstruction.reconstruction.morph import (
     accumulate_weighted_warp,

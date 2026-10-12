@@ -11,7 +11,6 @@ import pandas as pd
 
 from face_reconstruction.schemas import require_columns
 
-
 CFD_SHEET_NAME = "CFD U.S. Norming Data"
 
 CFD_COLUMN_MAPPING = {

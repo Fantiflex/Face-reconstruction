@@ -16,7 +16,6 @@ from face_reconstruction.experiment.simulation import (
     simulate_responses,
 )
 
-
 PAIRS_PATH = Path(
     "data/processed/pairs.csv"
 )

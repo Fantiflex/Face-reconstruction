@@ -4,7 +4,6 @@ from collections.abc import Iterable
 
 import pandas as pd
 
-
 CFD_REQUIRED_COLUMNS = [
     "Model",
     "GenderSelf",

@@ -1,23 +1,24 @@
 """High-level orchestration for the scientific pipeline."""
 
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import pandas as pd
 import yaml
 
-from .models.bradley_terry import (
-    add_softmax_weights,
-    estimate_standard_errors,
-    estimate_theta,
-)
+from .data.stimuli import build_stimuli_table
 from .diagnostics import build_diagnostic_table
 from .experiment.pairs import (
     add_pair_ids,
     generate_balanced_pairs,
     randomise_pair_sides,
 )
-from .data.stimuli import build_stimuli_table
+from .models.bradley_terry import (
+    add_softmax_weights,
+    estimate_standard_errors,
+    estimate_theta,
+)
 from .validation import validate_pairs, validate_responses, validate_stimuli
 
 
@@ -30,7 +31,9 @@ def load_config(config_path: Path) -> dict[str, Any]:
     with config_path.open("r", encoding="utf-8") as file:
         config = yaml.safe_load(file)
     if not isinstance(config, dict):
-        raise ValueError("The configuration file must contain a mapping.")
+        raise TypeError(
+            "The configuration file must contain a mapping."
+        )
     return config
 
 

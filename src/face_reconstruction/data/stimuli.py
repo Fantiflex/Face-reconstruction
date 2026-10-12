@@ -1,13 +1,12 @@
 """Stimulus indexing, image matching, and study-specific selection."""
 
+import re
 from pathlib import Path
 from typing import Literal
 
-import re
 import pandas as pd
 
 from ..schemas import STIMULUS_REQUIRED_COLUMNS, require_columns
-
 
 SUPPORTED_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 

@@ -3,8 +3,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 import cv2
 import numpy as np
@@ -174,7 +175,7 @@ def get_connection_group(attribute: str) -> Iterable[Any]:
         import mediapipe as mp
 
         connection_class = mp.tasks.vision.FaceLandmarksConnections
-    except (ImportError, AttributeError) as first_error:
+    except (ImportError, AttributeError):
         try:
             from mediapipe.tasks.python.vision import (
                 FaceLandmarksConnections as connection_class,
@@ -433,9 +434,9 @@ def visualise_row(
             raise OSError(f"OpenCV could not save: {output_path}")
 
         result["visualisation_created"] = True
-        result["n_landmarks"] = int(len(landmarks))
+        result["n_landmarks"] = len(landmarks)
         return result
-    except Exception as error:
+    except Exception as error: # noqa: BLE001
         result["error_type"] = type(error).__name__
         result["error_message"] = str(error)
         return result

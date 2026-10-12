@@ -11,7 +11,6 @@ import cv2
 import numpy as np
 import pandas as pd
 
-
 from face_reconstruction.geometry.alignment import (
     EYE_GROUP_A,
     EYE_GROUP_B,
@@ -20,7 +19,6 @@ from face_reconstruction.geometry.alignment import (
     similarity_transform_from_eyes,
     transform_landmarks,
 )
-
 from face_reconstruction.utils.io import parse_bool
 
 DEFAULT_MANIFEST_PATH = Path(
@@ -418,7 +416,7 @@ def process_row(
             }
         )
         return result, aligned_landmarks, aligned_image
-    except Exception as error:
+    except Exception as error: # noqa: BLE001
         result["alignment_qc_reason"] = "processing_exception"
         result["error_type"] = type(error).__name__
         result["error_message"] = str(error)

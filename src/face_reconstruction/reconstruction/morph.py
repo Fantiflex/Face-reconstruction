@@ -1,17 +1,17 @@
-import numpy as np
-
-from .weighting import normalize_weights
 from pathlib import Path
 from typing import Any
 
 import cv2
+import numpy as np
 import pandas as pd
-
-from face_reconstruction.utils.io import resolve_path
 
 from face_reconstruction.geometry.warping import (
     warp_piecewise_affine,
 )
+from face_reconstruction.utils.io import resolve_path
+
+from .weighting import normalize_weights
+
 
 def weighted_mean_landmarks(
     landmarks: np.ndarray,

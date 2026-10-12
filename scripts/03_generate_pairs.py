@@ -25,7 +25,6 @@ from face_reconstruction.validation import (
     validate_pairs,
 )
 
-
 STIMULI_PATH = Path(
     "data/processed/stimuli.csv"
 )
@@ -243,16 +242,18 @@ def print_pair_summary(
         f"Number of pairs: {len(pairs)}"
     )
 
+    represented_faces = pd.unique(
+        pd.concat(
+            [
+                pairs["model_left"],
+                pairs["model_right"],
+            ]
+        )
+    ).size
+
     print(
         "Number of represented faces: "
-        f"{pd.unique(
-            pd.concat(
-                [
-                    pairs['model_left'],
-                    pairs['model_right'],
-                ]
-            )
-        ).size}"
+        f"{represented_faces}"
     )
 
     print("\nExposure imbalance:")
