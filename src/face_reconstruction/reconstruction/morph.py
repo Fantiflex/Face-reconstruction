@@ -1,7 +1,12 @@
 import numpy as np
 
 from .weighting import normalize_weights
+from pathlib import Path
 
+import cv2
+import pandas as pd
+
+from face_reconstruction.utils.io import resolve_path
 
 def weighted_mean_landmarks(
     landmarks: np.ndarray,
@@ -212,3 +217,122 @@ def finalize_weighted_reconstruction(
         covered,
         uncovered_fraction,
     )
+
+
+
+
+
+def load_reconstruction_inputs(
+    eligible: pd.DataFrame,
+    *,
+    aligned_dir: Path,
+    selected_indices: np.ndarray,
+    n_detected: int,
+    n_selected: int,
+    width: int,
+    height: int,
+) -> list[
+    tuple[
+        str,
+        Path,
+        Path,
+        np.ndarray,
+        np.ndarray,
+        set[int],
+    ]
+]:
+    """Load aligned images and selected landmarks for reconstruction."""
+
+    alignment_manifest_path = (
+        aligned_dir / "alignment_manifest.csv"
+    )
+
+    loaded = []
+
+    for row in eligible.itertuples(index=False):
+        image_path = resolve_path(
+            str(row.aligned_image_path),
+            alignment_manifest_path,
+        )
+
+        landmark_path = resolve_path(
+            str(row.aligned_landmark_path),
+            alignment_manifest_path,
+        )
+
+        image = cv2.imread(
+            str(image_path),
+            cv2.IMREAD_COLOR,
+        )
+
+        if image is None:
+            raise ValueError(
+                f"OpenCV could not read aligned image: "
+                f"{image_path}"
+            )
+
+        if image.shape[:2] != (height, width):
+            raise ValueError(
+                f"Image {row.face_id} has shape "
+                f"{image.shape[:2]}, expected "
+                f"{(height, width)}."
+            )
+
+        landmarks = np.asarray(
+            np.load(
+                landmark_path,
+                allow_pickle=False,
+            ),
+            dtype=np.float64,
+        )
+
+        if landmarks.shape != (n_detected, 2):
+            raise ValueError(
+                f"Landmarks for {row.face_id} "
+                f"have shape {landmarks.shape}; "
+                f"expected {(n_detected, 2)}."
+            )
+
+        if not np.isfinite(landmarks).all():
+            raise ValueError(
+                f"Non-finite landmarks for "
+                f"{row.face_id}."
+            )
+
+        selected_landmarks = landmarks[
+            selected_indices
+        ]
+
+        if selected_landmarks.shape != (
+            n_selected,
+            2,
+        ):
+            raise ValueError(
+                f"Landmark selection failed for "
+                f"{row.face_id}: "
+                f"{selected_landmarks.shape}."
+            )
+
+        unstable = getattr(
+            row,
+            "unstable_triangle_indices_parsed",
+            set(),
+        )
+
+        loaded.append(
+            (
+                str(row.face_id),
+                image_path,
+                landmark_path,
+                image,
+                selected_landmarks,
+                set(unstable),
+            )
+        )
+
+    if not loaded:
+        raise ValueError(
+            "No eligible faces available for reconstruction."
+        )
+
+    return loaded

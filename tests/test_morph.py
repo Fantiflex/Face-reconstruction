@@ -103,3 +103,99 @@ def test_build_target_points_appends_anchors():
         target_points[-2:],
         anchors,
     )
+
+
+def test_load_reconstruction_inputs(tmp_path):
+    import cv2
+    import pandas as pd
+
+    from face_reconstruction.reconstruction.morph import (
+        load_reconstruction_inputs,
+    )
+
+    aligned_dir = tmp_path / "aligned"
+    aligned_dir.mkdir()
+
+    image = np.full(
+        (20, 20, 3),
+        128,
+        dtype=np.uint8,
+    )
+
+    image_path = aligned_dir / "face.png"
+
+    assert cv2.imwrite(
+        str(image_path),
+        image,
+    )
+
+    landmarks = np.array(
+        [
+            [5.0, 5.0],
+            [10.0, 10.0],
+            [15.0, 15.0],
+        ],
+        dtype=np.float64,
+    )
+
+    landmark_path = (
+        aligned_dir / "face_landmarks.npy"
+    )
+
+    np.save(
+        landmark_path,
+        landmarks,
+        allow_pickle=False,
+    )
+
+    eligible = pd.DataFrame(
+        {
+            "face_id": ["face_1"],
+            "aligned_image_path": [
+                str(image_path)
+            ],
+            "aligned_landmark_path": [
+                str(landmark_path)
+            ],
+            "unstable_triangle_indices_parsed": [
+                set()
+            ],
+        }
+    )
+
+    loaded = load_reconstruction_inputs(
+        eligible,
+        aligned_dir=aligned_dir,
+        selected_indices=np.array(
+            [0, 2],
+            dtype=np.int32,
+        ),
+        n_detected=3,
+        n_selected=2,
+        width=20,
+        height=20,
+    )
+
+    assert len(loaded) == 1
+
+    (
+        face_id,
+        _,
+        _,
+        loaded_image,
+        selected_landmarks,
+        unstable,
+    ) = loaded[0]
+
+    assert face_id == "face_1"
+    assert loaded_image.shape == (20, 20, 3)
+
+    assert np.allclose(
+        selected_landmarks,
+        [
+            [5.0, 5.0],
+            [15.0, 15.0],
+        ],
+    )
+
+    assert unstable == set()

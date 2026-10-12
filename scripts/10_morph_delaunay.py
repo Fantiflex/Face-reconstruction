@@ -28,6 +28,7 @@ from face_reconstruction.reconstruction.morph import (
     accumulate_weighted_warp,
     build_target_points,
     finalize_weighted_reconstruction,
+    load_reconstruction_inputs,
 )
 
 
@@ -36,6 +37,7 @@ from face_reconstruction.utils.io import (
     resolve_path,
     sha256_arrays,
 )
+
 
 
 DEFAULT_ALIGNED_DIR = Path("data/interim/aligned_faces")
@@ -832,52 +834,15 @@ def main() -> int:
     if anchors.shape != (n_anchors, 2):
         raise ValueError(f"Invalid boundary-anchor shape: {anchors.shape}")
 
-    loaded: list[
-        tuple[str, Path, Path, np.ndarray, np.ndarray, set[int]]
-    ] = []
-    alignment_manifest_path = aligned_dir / "alignment_manifest.csv"
-    for row in eligible.itertuples(index=False):
-        image_path = resolve_path(
-            str(row.aligned_image_path), alignment_manifest_path
-        )
-        landmark_path = resolve_path(
-            str(row.aligned_landmark_path), alignment_manifest_path
-        )
-        image = cv2.imread(str(image_path), cv2.IMREAD_COLOR)
-        if image is None:
-            raise ValueError(f"OpenCV could not read aligned image: {image_path}")
-        if image.shape[:2] != (height, width):
-            raise ValueError(
-                f"Image {row.face_id} has shape {image.shape[:2]}, "
-                f"expected {(height, width)}."
-            )
-        landmarks = np.asarray(
-            np.load(landmark_path, allow_pickle=False), dtype=np.float64
-        )
-        if landmarks.shape != (n_detected, 2):
-            raise ValueError(
-                f"Landmarks for {row.face_id} have shape {landmarks.shape}; "
-                f"expected {(n_detected, 2)}."
-            )
-        if not np.isfinite(landmarks).all():
-            raise ValueError(f"Non-finite landmarks for {row.face_id}.")
-        selected_landmarks = landmarks[selected_indices]
-        if selected_landmarks.shape != (n_selected, 2):
-            raise ValueError(
-                f"Landmark selection failed for {row.face_id}: "
-                f"{selected_landmarks.shape}."
-            )
-        loaded.append(
-            (
-                str(row.face_id),
-                image_path,
-                landmark_path,
-                image,
-                selected_landmarks,
-                set(row.unstable_triangle_indices_parsed),
-            )
-        )
-
+    loaded = load_reconstruction_inputs(
+        eligible,
+        aligned_dir=aligned_dir,
+        selected_indices=selected_indices,
+        n_detected=n_detected,
+        n_selected=n_selected,
+        width=width,
+        height=height,
+    )
     n_faces = len(loaded)
     if weights.shape != (n_faces,):
         raise ValueError(
