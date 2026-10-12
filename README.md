@@ -192,3 +192,88 @@ Verify the installation with:
 python -m pytest
 python -m ruff check src scripts tests
 ```
+
+
+
+## Quick Start
+
+The scripts are designed to be run from the repository root and follow the numerical order of the pipeline.
+
+### 1. Prepare the CFD stimulus set
+
+The Chicago Face Database files are not distributed with this repository. Place the required CFD metadata and images under the expected `data/raw/` structure before running the preprocessing steps.
+
+```bash
+python scripts/01_audit_cfd_manifest.py
+python scripts/02_build_stimuli.py
+python scripts/03_generate_pairs.py
+```
+
+These steps audit the source data, construct the candidate stimulus set, and generate the pairwise-comparison design.
+
+### 2. Validate the statistical pipeline with simulated participants
+
+Before using experimental responses, the Bradley–Terry estimation pipeline can be tested on synthetic data:
+
+```bash
+python scripts/04_simulate_participants.py
+python scripts/05_fit_bradley_terry.py
+```
+
+The simulation step generates known latent utilities and synthetic choices, allowing estimated Bradley–Terry scores to be compared against ground truth.
+
+For real experiments, simulated responses are replaced by the participant response table collected during the pairwise-choice task.
+
+### 3. Build the facial geometry
+
+Extract and inspect MediaPipe landmarks:
+
+```bash
+python scripts/06_extract_landmarks.py
+python scripts/07_visualise_landmarks.py
+```
+
+Align the valid faces to a common coordinate system:
+
+```bash
+python scripts/08_align_faces.py
+```
+
+Build and validate the common Delaunay topology:
+
+```bash
+python scripts/09_build_common_triangulation.py
+```
+
+### 4. Reconstruct a facial prototype
+
+A uniform-weight reconstruction can be used as a baseline:
+
+```bash
+python scripts/10_morph_delaunay.py \
+  --weight-mode uniform
+```
+
+For a participant-specific reconstruction, provide Bradley–Terry estimates:
+
+```bash
+python scripts/10_morph_delaunay.py \
+  --weight-mode bradley-terry \
+  --weights-path path/to/bradley_terry_scores.csv
+```
+
+The reconstruction combines two participant-specific components:
+
+1. a **weighted facial shape**, obtained from the aligned landmark coordinates;
+2. a **weighted facial texture**, obtained after piecewise-affine warping each source face to that target shape.
+
+### Development checks
+
+Before committing changes, run:
+
+```bash
+python -m pytest
+python -m ruff check src scripts tests
+```
+
+The same checks are executed automatically by GitHub Actions on pushes and pull requests.
