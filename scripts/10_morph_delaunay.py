@@ -923,7 +923,8 @@ def main() -> int:
         allow_pickle=False,
     )
     used_paths = pd.DataFrame(weight_rows).drop(
-        columns=["weight_input_value", "weight"]
+        columns=["weight"],
+        errors="ignore",
     )
     weight_diagnostics = weight_table[
         [
