@@ -1,0 +1,11 @@
+face_id,weight_input_value,rank_by_input_value,included_in_morph,weight,n_manifest_unstable_triangles,n_runtime_skipped_triangles,covered_pixel_fraction,aligned_image_path,aligned_landmark_path
+BM-001,0.1,1,True,0.1,1,1,0.999969482421875,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-001.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-001.npy
+BM-002,0.1,1,True,0.1,0,0,1.0,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-002.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-002.npy
+BM-003,0.1,1,True,0.1,0,0,1.0,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-003.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-003.npy
+BM-005,0.1,1,True,0.1,0,0,1.0,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-005.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-005.npy
+BM-009,0.1,1,True,0.1,1,1,0.999969482421875,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-009.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-009.npy
+BM-010,0.1,1,True,0.1,0,0,1.0,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-010.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-010.npy
+BM-011,0.1,1,True,0.1,1,1,0.9999961853027344,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-011.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-011.npy
+BM-015,0.1,1,True,0.1,1,1,0.9999961853027344,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-015.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-015.npy
+BM-019,0.1,1,True,0.1,2,2,0.9999313354492188,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-019.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-019.npy
+BM-020,0.1,1,True,0.1,2,2,0.9987335205078125,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/images/BM-020.png,/Users/fantine/Face_Reconstruction/data/interim/aligned_faces/landmarks/BM-020.npy

@@ -1,0 +1,9 @@
+face_id,triangle_index,reason,original_face_weight
+BM-001,156,step09_unstable,0.1
+BM-009,156,step09_unstable,0.1
+BM-011,305,step09_unstable,0.1
+BM-015,305,step09_unstable,0.1
+BM-019,156,step09_unstable,0.1
+BM-019,160,step09_unstable,0.1
+BM-020,25,step09_unstable,0.1
+BM-020,156,step09_unstable,0.1

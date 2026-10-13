@@ -318,7 +318,7 @@ def main() -> None:
     latent_scores = (
         generate_latent_scores(
             face_ids=face_ids,
-            random_state=args.random_state,
+            random_state=RANDOM_STATE,
         )
     )
 
@@ -336,14 +336,7 @@ def main() -> None:
         responses=responses,
         output_directory=args.output_dir,
     )
-    print("\nSimulation configuration")
 
-    print("------------------------")
-    print(f"- pairs path: {args.pairs_path}")
-    print(f"- participants: {args.n_participants}")
-    print(f"- random state: {args.random_state}")
-    print(f"- output directory: {args.output_dir}")
-    
     print_simulation_summary(
         latent_scores=latent_scores,
         responses=responses,
