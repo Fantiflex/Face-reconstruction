@@ -9,6 +9,7 @@ __pycache__/
 venv/
 
 # Raw data
+data
 data/raw/cfd/*
 !data/raw/cfd/.gitkeep
 # Raw CFD data
