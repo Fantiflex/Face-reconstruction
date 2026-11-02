@@ -1,267 +1,172 @@
 from __future__ import annotations
 
-import time
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
-from face_reconstruction.models.bradley_terry import (
-    add_softmax_weights,
-    estimate_standard_errors,
-    estimate_theta,
+STIMULI_PATH = Path("data/processed/stimuli.csv")
+PAIRS_PATH = Path("data/processed/pairs.csv")
+SCORES_PATH = Path("data/results/bradley_terry/scores.csv")
+ALIGNMENT_MANIFEST_PATH = Path(
+    "data/interim/aligned_faces/alignment_manifest.csv"
+)
+TRIANGULATION_MANIFEST_PATH = Path(
+    "data/interim/common_triangulation/triangulation_manifest.csv"
 )
 
 
-PAIRS_PATH = Path("data/processed/pairs.csv")
-STIMULI_PATH = Path("data/processed/stimuli.csv")
-
-
 st.set_page_config(
-    page_title="Face Reconstruction",
+    page_title="Face Reconstruction Researcher",
+    page_icon="🧠",
     layout="wide",
 )
 
 
-@st.cache_data
-def load_data() -> tuple[pd.DataFrame, pd.DataFrame]:
-    pairs = pd.read_csv(PAIRS_PATH)
-    stimuli = pd.read_csv(STIMULI_PATH)
+def csv_row_count(path: Path) -> int | None:
+    if not path.exists():
+        return None
 
-    stimuli["face_id"] = stimuli["face_id"].astype(str)
-
-    return pairs, stimuli
-
-
-def get_image_path(
-    face_id: str,
-    stimuli: pd.DataFrame,
-) -> Path:
-    row = stimuli.loc[
-        stimuli["face_id"] == face_id
-    ]
-
-    if row.empty:
-        raise ValueError(
-            f"Unknown face_id: {face_id}"
-        )
-
-    return Path(
-        row.iloc[0]["image_path"]
+    return len(
+        pd.read_csv(path)
     )
 
 
-def fit_bradley_terry(
-    responses: pd.DataFrame,
-    participant_id: str,
-) -> pd.DataFrame:
-    scores = estimate_theta(
-        responses=responses,
-        regularization=1.0,
-        participant_id=participant_id,
-    )
+def qc_pass_count(
+    path: Path,
+    column: str,
+) -> tuple[int, int] | None:
+    if not path.exists():
+        return None
 
-    scores = estimate_standard_errors(
-        responses=responses,
-        scores=scores,
-        regularization=1.0,
-    )
+    table = pd.read_csv(path)
 
-    scores = add_softmax_weights(
-        scores=scores,
-        temperature=1.0,
-    )
+    if column not in table.columns:
+        return None
 
-    return scores
+    values = table[column].astype(bool)
+
+    return int(values.sum()), len(table)
 
 
-pairs, stimuli = load_data()
-
-if "trial_index" not in st.session_state:
-    st.session_state.trial_index = 0
-
-if "responses" not in st.session_state:
-    st.session_state.responses = []
-
-if "trial_start" not in st.session_state:
-    st.session_state.trial_start = time.perf_counter()
-
-
-st.title("Face Reconstruction Test")
-
-participant_id = st.sidebar.text_input(
-    "Participant ID",
-    value="TEST_001",
+st.title("Face Reconstruction")
+st.caption(
+    "Researcher dashboard for experiment preparation, "
+    "Bradley–Terry analysis, and facial reconstruction."
 )
 
-n_trials = st.sidebar.slider(
-    "Number of pairwise choices",
-    min_value=5,
-    max_value=min(100, len(pairs)),
-    value=min(20, len(pairs)),
-    step=5,
+st.divider()
+
+st.subheader("Pipeline status")
+
+stimuli_count = csv_row_count(STIMULI_PATH)
+pairs_count = csv_row_count(PAIRS_PATH)
+
+alignment_status = qc_pass_count(
+    ALIGNMENT_MANIFEST_PATH,
+    "alignment_qc_pass",
 )
 
-if st.sidebar.button("Reset experiment"):
-    st.session_state.trial_index = 0
-    st.session_state.responses = []
-    st.session_state.trial_start = time.perf_counter()
-    st.rerun()
+topology_status = qc_pass_count(
+    TRIANGULATION_MANIFEST_PATH,
+    "topology_qc_pass",
+)
 
+if SCORES_PATH.exists():
+    scores = pd.read_csv(SCORES_PATH)
 
-trial_index = st.session_state.trial_index
-
-if trial_index < n_trials:
-    pair = pairs.iloc[trial_index]
-
-    left_id = str(pair["model_left"])
-    right_id = str(pair["model_right"])
-
-    left_path = get_image_path(
-        left_id,
-        stimuli,
+    participant_count = (
+        scores["participant_id"].nunique()
+        if "participant_id" in scores.columns
+        else None
     )
-
-    right_path = get_image_path(
-        right_id,
-        stimuli,
-    )
-
-    st.progress(
-        trial_index / n_trials
-    )
-
-    st.write(
-        f"Choice {trial_index + 1} / {n_trials}"
-    )
-
-    col_left, col_right = st.columns(2)
-
-    with col_left:
-        st.image(
-            str(left_path),
-            use_container_width=True,
-        )
-
-        choose_left = st.button(
-            "Choose left",
-            use_container_width=True,
-            key=f"left_{trial_index}",
-        )
-
-    with col_right:
-        st.image(
-            str(right_path),
-            use_container_width=True,
-        )
-
-        choose_right = st.button(
-            "Choose right",
-            use_container_width=True,
-            key=f"right_{trial_index}",
-        )
-
-    selected_model = None
-
-    if choose_left:
-        selected_model = left_id
-
-    if choose_right:
-        selected_model = right_id
-
-    if selected_model is not None:
-        response_time_ms = (
-            time.perf_counter()
-            - st.session_state.trial_start
-        ) * 1000
-
-        st.session_state.responses.append(
-            {
-                "participant_id": participant_id,
-                "trial_index": trial_index,
-                "pair_id": pair["pair_id"],
-                "model_left": left_id,
-                "model_right": right_id,
-                "selected_model": selected_model,
-                "response_time_ms": response_time_ms,
-            }
-        )
-
-        st.session_state.trial_index += 1
-        st.session_state.trial_start = time.perf_counter()
-
-        st.rerun()
-
 else:
-    st.success(
-        "Pairwise choices completed."
+    participant_count = None
+
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric(
+        "Stimuli",
+        stimuli_count if stimuli_count is not None else "—",
     )
 
-    responses = pd.DataFrame(
-        st.session_state.responses
+with col2:
+    st.metric(
+        "Pairs",
+        pairs_count if pairs_count is not None else "—",
     )
 
-    st.subheader("Responses")
-    st.dataframe(
-        responses,
-        use_container_width=True,
+with col3:
+    st.metric(
+        "Participants fitted",
+        participant_count if participant_count is not None else "—",
     )
 
-    if st.button(
-        "Estimate Bradley-Terry weights",
-        type="primary",
-    ):
-        scores = fit_bradley_terry(
-            responses,
-            participant_id,
+with col4:
+    if alignment_status is None:
+        alignment_label = "—"
+    else:
+        passed, total = alignment_status
+        alignment_label = f"{passed}/{total}"
+
+    st.metric(
+        "Aligned faces",
+        alignment_label,
+    )
+
+
+st.divider()
+
+st.subheader("Geometry")
+
+col1, col2 = st.columns(2)
+
+with col1:
+    if alignment_status is None:
+        st.info(
+            "No alignment manifest found."
+        )
+    else:
+        passed, total = alignment_status
+
+        st.write(
+            f"Alignment QC: **{passed}/{total} passed**"
         )
 
-        st.session_state.scores = scores
+with col2:
+    if topology_status is None:
+        st.info(
+            "No triangulation manifest found."
+        )
+    else:
+        passed, total = topology_status
 
-
-if "scores" in st.session_state:
-    scores = st.session_state.scores
-
-    st.subheader(
-        "Bradley-Terry scores"
-    )
-
-    st.dataframe(
-        scores.sort_values(
-            "weight",
-            ascending=False,
-        ),
-        use_container_width=True,
-    )
-
-    st.subheader(
-        "Top weighted faces"
-    )
-
-    top_faces = scores.nlargest(
-        5,
-        "weight",
-    )
-
-    cols = st.columns(
-        len(top_faces)
-    )
-
-    for col, row in zip(
-        cols,
-        top_faces.itertuples(),
-    ):
-        path = get_image_path(
-            row.face_id,
-            stimuli,
+        st.write(
+            f"Topology QC: **{passed}/{total} passed**"
         )
 
-        with col:
-            st.image(
-                str(path),
-                use_container_width=True,
-            )
-            st.caption(
-                f"{row.face_id}\n"
-                f"w={row.weight:.3f}"
-            )
+
+st.divider()
+
+st.subheader("Research workflow")
+
+st.markdown(
+    """
+    Use this dashboard to:
+
+    1. prepare and inspect the stimulus set;
+    2. generate pairwise comparisons;
+    3. import participant responses;
+    4. fit participant-specific Bradley–Terry models;
+    5. inspect reconstruction weights;
+    6. reconstruct participant-specific facial prototypes.
+    """
+)
+
+st.info(
+    "The scientific computations remain in "
+    "`src/face_reconstruction/`. "
+    "This application only provides an interface to them."
+)
