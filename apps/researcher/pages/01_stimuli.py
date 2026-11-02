@@ -5,9 +5,17 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-STIMULI_PATH = Path("data/processed/stimuli.csv")
+HARMONISED_MANIFEST_PATH = Path(
+    "data/interim/cfd_audit/cfd_manifest_harmonised.csv"
+)
+
+IMAGE_DIRECTORY = Path(
+    "data/raw/cfd/images"
+)
+
 DEFAULT_SAVE_PATH = Path("data/processed/stimuli_selected.csv")
 
+from face_reconstruction.data.stimuli import build_stimuli_table
 
 st.set_page_config(
     page_title="Stimuli",
@@ -17,18 +25,16 @@ st.set_page_config(
 
 
 @st.cache_data
-def load_stimuli() -> pd.DataFrame:
-    if not STIMULI_PATH.exists():
+def load_manifest() -> pd.DataFrame:
+    if not HARMONISED_MANIFEST_PATH.exists():
         raise FileNotFoundError(
-            f"Stimulus table not found: {STIMULI_PATH}"
+            "Harmonised CFD manifest not found: "
+            f"{HARMONISED_MANIFEST_PATH}"
         )
 
-    stimuli = pd.read_csv(STIMULI_PATH).copy()
-
-    if "face_id" in stimuli.columns:
-        stimuli["face_id"] = stimuli["face_id"].astype(str)
-
-    return stimuli
+    return pd.read_csv(
+        HARMONISED_MANIFEST_PATH
+    )
 
 
 def resolve_image_path(raw_path: str) -> Path:
@@ -170,7 +176,7 @@ st.caption(
 )
 
 try:
-    stimuli = load_stimuli()
+    manifest = load_manifest()
 except FileNotFoundError as error:
     st.error(str(error))
     st.stop()
@@ -184,15 +190,16 @@ col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric(
         "Total faces",
-        len(stimuli),
+        len(manifest),
     )
 
 with col2:
     value = (
-        stimuli["gender_self"].nunique()
-        if "gender_self" in stimuli.columns
+        manifest["gender_self"].nunique()
+        if "gender_self" in manifest.columns
         else "—"
     )
+
     st.metric(
         "Gender groups",
         value,
@@ -200,10 +207,11 @@ with col2:
 
 with col3:
     value = (
-        stimuli["ethnicity_self"].nunique()
-        if "ethnicity_self" in stimuli.columns
+        manifest["ethnicity_self"].nunique()
+        if "ethnicity_self" in manifest.columns
         else "—"
     )
+
     st.metric(
         "Self ethnicity groups",
         value,
@@ -211,10 +219,11 @@ with col3:
 
 with col4:
     value = (
-        stimuli["ethnicity_perceived"].nunique()
-        if "ethnicity_perceived" in stimuli.columns
+        manifest["ethnicity_perceived"].nunique()
+        if "ethnicity_perceived" in manifest.columns
         else "—"
     )
+
     st.metric(
         "Perceived ethnicity groups",
         value,
@@ -224,19 +233,28 @@ st.divider()
 
 st.subheader("Stimulus configuration")
 
-gender_options = optional_str_options(
-    stimuli,
-    "gender_self",
+gender_options = sorted(
+    manifest["gender_self"]
+    .dropna()
+    .astype(str)
+    .unique()
+    .tolist()
 )
 
-self_ethnicity_options = optional_str_options(
-    stimuli,
-    "ethnicity_self",
+self_ethnicity_options = sorted(
+    manifest["ethnicity_self"]
+    .dropna()
+    .astype(str)
+    .unique()
+    .tolist()
 )
 
-perceived_ethnicity_options = optional_str_options(
-    stimuli,
-    "ethnicity_perceived",
+perceived_ethnicity_options = sorted(
+    manifest["ethnicity_perceived"]
+    .dropna()
+    .astype(str)
+    .unique()
+    .tolist()
 )
 
 left, right = st.columns(2)
@@ -311,14 +329,29 @@ with right:
         ),
     )
 
-filtered = filter_stimuli(
-    stimuli,
-    selected_genders=selected_genders,
-    selected_self_ethnicities=selected_self_ethnicities,
-    selected_perceived_ethnicities=selected_perceived_ethnicities,
-    selection_mode=selection_mode,
-    minimum_perceived_ethnicity=minimum_perceived_ethnicity,
+filtered = build_stimuli_table(
+    manifest=manifest,
+    image_directory=IMAGE_DIRECTORY,
+    genders=(
+        selected_genders
+        if selected_genders
+        else None
+    ),
     minimum_perceived_gender=minimum_perceived_gender,
+    ethnicities_self=(
+        selected_self_ethnicities
+        if selected_self_ethnicities
+        else None
+    ),
+    ethnicities_perceived=(
+        selected_perceived_ethnicities
+        if selected_perceived_ethnicities
+        else None
+    ),
+    minimum_perceived_probability=(
+        minimum_perceived_ethnicity
+    ),
+    ethnicity_selection_mode=selection_mode,
 )
 
 st.divider()
