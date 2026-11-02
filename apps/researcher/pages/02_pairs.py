@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from itertools import combinations_with_replacement
 from pathlib import Path
 
@@ -16,6 +17,9 @@ from face_reconstruction.experiment.pairs import (
 
 STIMULI_PATH = Path("data/processed/stimuli.csv")
 PAIRS_OUTPUT_PATH = Path("data/processed/pairs.csv")
+CONFIG_OUTPUT_PATH = Path(
+    "data/processed/experiment_config.json"
+)
 
 
 st.set_page_config(
@@ -47,6 +51,21 @@ def load_stimuli() -> pd.DataFrame:
 
     return stimuli
 
+def build_group_counts(
+    stimuli: pd.DataFrame,
+    column: str,
+) -> pd.DataFrame:
+    if column not in stimuli.columns:
+        return pd.DataFrame()
+
+    return (
+        stimuli[column]
+        .fillna("missing")
+        .astype(str)
+        .value_counts()
+        .rename_axis(column)
+        .reset_index(name="n_faces")
+    )
 
 def build_exposure_table(
     pairs: pd.DataFrame,
@@ -187,8 +206,17 @@ maximum_pairs = (
     n_faces * (n_faces - 1) // 2
 )
 
+st.info(
+    "This page uses the active stimulus set saved from "
+    "the Stimuli page."
+)
 
-st.subheader("Active stimulus set")
+st.caption(
+    f"Source: {STIMULI_PATH}"
+)
+
+
+st.subheader("Active stimulus pool")
 
 col1, col2 = st.columns(2)
 
@@ -203,6 +231,49 @@ with col2:
         "Maximum unique pairs",
         maximum_pairs,
     )
+
+with st.expander(
+    "Show active pool composition",
+    expanded=False,
+):
+    available_summary_columns = [
+        column
+        for column in [
+            "ethnicity_perceived",
+            "ethnicity_self",
+            "gender_self",
+        ]
+        if column in stimuli.columns
+    ]
+
+    if not available_summary_columns:
+        st.info(
+            "No demographic summary columns found."
+        )
+    else:
+        summary_columns = st.columns(
+            len(available_summary_columns)
+        )
+
+        for container, column in zip(
+            summary_columns,
+            available_summary_columns,
+        ):
+            with container:
+                st.markdown(
+                    f"**{column}**"
+                )
+
+                summary = build_group_counts(
+                    stimuli,
+                    column,
+                )
+
+                st.dataframe(
+                    summary,
+                    use_container_width=True,
+                    hide_index=True,
+                )
 
 
 st.divider()
@@ -303,9 +374,9 @@ if method == "stratified":
     )
 
     st.caption(
-        "These percentages determine which types of "
-        "comparisons participants will see. "
-        "They must sum to 100%."
+        "Choose the proportion of each pair type. "
+        "The final category is calculated automatically "
+        "so that the total is exactly 100%."
     )
 
     pair_types = list(
@@ -315,38 +386,39 @@ if method == "stratified":
         )
     )
 
-    default_proportion = (
-        1.0 / len(pair_types)
-    )
-
     target_pair_type_proportions = {}
 
-    columns = st.columns(
-        min(
-            3,
-            len(pair_types),
-        )
-    )
+    remaining_percentage = 100
 
     for index, pair_type in enumerate(
         pair_types
     ):
         group_a, group_b = pair_type
 
-        column = columns[
-            index % len(columns)
-        ]
+        label = (
+            f"{group_a} × {group_b}"
+        )
 
-        with column:
-            value = st.number_input(
-                f"{group_a} × {group_b}",
-                min_value=0.0,
-                max_value=1.0,
-                value=float(
-                    default_proportion
+        is_last = (
+            index
+            == len(pair_types) - 1
+        )
+
+        if is_last:
+            percentage = max(
+                0,
+                remaining_percentage,
+            )
+
+            st.number_input(
+                label,
+                min_value=0,
+                max_value=100,
+                value=int(
+                    percentage
                 ),
-                step=0.05,
-                format="%.2f",
+                step=1,
+                disabled=True,
                 key=(
                     f"pair_type_"
                     f"{group_a}_"
@@ -354,26 +426,51 @@ if method == "stratified":
                 ),
             )
 
+        else:
+            default_value = int(
+                remaining_percentage
+                / (
+                    len(pair_types)
+                    - index
+                )
+            )
+
+            percentage = st.number_input(
+                label,
+                min_value=0,
+                max_value=max(
+                    0,
+                    remaining_percentage,
+                ),
+                value=default_value,
+                step=1,
+                key=(
+                    f"pair_type_"
+                    f"{group_a}_"
+                    f"{group_b}"
+                ),
+            )
+
+            remaining_percentage -= int(
+                percentage
+            )
+
         target_pair_type_proportions[
             pair_type
-        ] = float(value)
-
-    total_proportion = sum(
-        target_pair_type_proportions.values()
-    )
-
-    if abs(
-        total_proportion - 1.0
-    ) > 1e-8:
-        st.error(
-            "Pair-type proportions must sum to 1.00. "
-            f"Current total: {total_proportion:.2f}"
+        ] = (
+            float(percentage)
+            / 100.0
         )
-    else:
+        total_percentage = round(
+            sum(
+                target_pair_type_proportions.values()
+            )
+            * 100
+        )
+
         st.success(
-            "Pair-type proportions sum to 100%."
+            f"Total pair allocation: {total_percentage}%"
         )
-
 
 st.divider()
 
@@ -393,15 +490,7 @@ if st.button(
                     "Stratified configuration is incomplete."
                 )
 
-            if not abs(
-                sum(
-                    target_pair_type_proportions.values()
-                )
-                - 1.0
-            ) <= 1e-8:
-                raise ValueError(
-                    "Pair-type proportions must sum to 1."
-                )
+            
 
             pairs = generate_stratified_pairs(
                 stimuli=stimuli,
@@ -619,6 +708,25 @@ if "generated_pairs" in st.session_state:
         )
 
     with col2:
+        config = {
+            "stimuli_path": str(STIMULI_PATH),
+            "pairs_path": str(PAIRS_OUTPUT_PATH),
+            "n_faces": n_faces,
+            "n_pairs": int(n_pairs),
+            "generation_method": method,
+            "random_state": int(random_state),
+            "group_column": diagnostics_group_column,
+        }
+
+        if (
+            method == "stratified"
+            and target_pair_type_proportions is not None
+        ):
+            config["target_pair_type_proportions"] = {
+                f"{group_a}__{group_b}": proportion
+                for (group_a, group_b), proportion
+                in target_pair_type_proportions.items()
+            }
         if st.button(
             "Save as active pair design",
             use_container_width=True,
@@ -633,7 +741,24 @@ if "generated_pairs" in st.session_state:
                 index=False,
             )
 
+            with CONFIG_OUTPUT_PATH.open(
+                "w",
+                encoding="utf-8",
+            ) as file:
+                json.dump(
+                    config,
+                    file,
+                    indent=2,
+                )
+
             st.success(
-                "Active pair design saved to "
-                f"{PAIRS_OUTPUT_PATH}"
+                "Active pair design saved."
+            )
+
+            st.caption(
+                f"Pairs: {PAIRS_OUTPUT_PATH}"
+            )
+
+            st.caption(
+                f"Configuration: {CONFIG_OUTPUT_PATH}"
             )
