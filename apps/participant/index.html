@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0"
+  />
+  <title>Face comparison task</title>
+
+  <link
+    rel="stylesheet"
+    href="style.css"
+  />
+</head>
+
+<body>
+  <main id="app">
+
+    <section
+      id="start-screen"
+      class="screen"
+    >
+      <h1>Comparaison de visages</h1>
+
+      <p>
+        À chaque essai, deux visages vous seront présentés.
+      </p>
+
+      <p>
+        Choisissez le visage correspondant le mieux à la consigne.
+      </p>
+
+      <button
+        id="start-button"
+        type="button"
+      >
+        Commencer
+      </button>
+    </section>
+
+
+    <section
+      id="task-screen"
+      class="screen hidden"
+    >
+      <div class="task-header">
+        <span id="progress">
+          Essai 0 / 0
+        </span>
+      </div>
+
+      <h2 id="instruction">
+        Quel visage choisissez-vous ?
+      </h2>
+
+      <div class="faces">
+        <button
+          id="left-choice"
+          class="face-button"
+          type="button"
+        >
+          <img
+            id="left-image"
+            alt="Visage gauche"
+          />
+        </button>
+
+        <button
+          id="right-choice"
+          class="face-button"
+          type="button"
+        >
+          <img
+            id="right-image"
+            alt="Visage droit"
+          />
+        </button>
+      </div>
+
+      <p
+        id="timeout-message"
+        class="timeout-message hidden"
+      >
+        Attention, vous avez pris trop longtemps à répondre.
+      </p>
+    </section>
+
+
+    <section
+      id="end-screen"
+      class="screen hidden"
+    >
+      <h1>Merci !</h1>
+
+      <p>
+        Vous avez terminé la tâche.
+      </p>
+    </section>
+
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
