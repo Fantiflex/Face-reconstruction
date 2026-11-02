@@ -511,82 +511,58 @@ if sampling_mode == "Sample a controlled subset":
 
 st.divider()
 
-st.subheader("Selection summary")
+with st.expander(
+    "Selection summary",
+    expanded=False,
+):
+    col1, col2 = st.columns([1, 2])
 
-col1, col2 = st.columns([1, 2])
-
-with col1:
-    st.metric(
-        "Selected faces",
-        len(filtered),
-    )
-
-    st.write("**Current configuration**")
-    st.write(
-        {
-            "selection_mode": selection_mode,
-            "genders": selected_genders,
-            "ethnicities_self": selected_self_ethnicities,
-            "ethnicities_perceived": selected_perceived_ethnicities,
-            "minimum_perceived_ethnicity": minimum_perceived_ethnicity,
-            "minimum_perceived_gender": minimum_perceived_gender,
-        }
-    )
-
-    if filtered.empty:
-        st.error(
-            "No stimulus matches the current configuration."
-        )
-    else:
-        csv_data = active_selection.to_csv(
-            index=False
-        ).encode("utf-8")
-
-        st.download_button(
-            "Download selected stimuli CSV",
-            data=csv_data,
-            file_name="stimuli_selected.csv",
-            mime="text/csv",
-            use_container_width=True,
+    with col1:
+        st.metric(
+            "Selected faces",
+            len(active_selection),
         )
 
-        if st.button(
-            "Save as active stimulus set",
-            type="primary",
-            use_container_width=True,
-        ):
-            save_selection_to_disk(
+        st.write("**Current configuration**")
+
+        st.write(
+            {
+                "selection_mode": selection_mode,
+                "genders": selected_genders,
+                "ethnicities_self": selected_self_ethnicities,
+                "ethnicities_perceived": selected_perceived_ethnicities,
+                "minimum_perceived_ethnicity": (
+                    minimum_perceived_ethnicity
+                ),
+                "minimum_perceived_gender": (
+                    minimum_perceived_gender
+                ),
+            }
+        )
+
+    with col2:
+        dist1, dist2, dist3 = st.columns(3)
+
+        with dist1:
+            render_distribution(
                 active_selection,
-                DEFAULT_SAVE_PATH,
-            )
-            st.success(
-                f"Saved selection to: {DEFAULT_SAVE_PATH}"
+                "gender_self",
+                "Gender",
             )
 
-with col2:
-    dist1, dist2, dist3 = st.columns(3)
+        with dist2:
+            render_distribution(
+                active_selection,
+                "ethnicity_self",
+                "Self-reported ethnicity",
+            )
 
-    with dist1:
-        render_distribution(
-            filtered,
-            "gender_self",
-            "Gender",
-        )
-
-    with dist2:
-        render_distribution(
-            filtered,
-            "ethnicity_self",
-            "Self-reported ethnicity",
-        )
-
-    with dist3:
-        render_distribution(
-            filtered,
-            "ethnicity_perceived",
-            "Perceived ethnicity",
-        )
-
+        with dist3:
+            render_distribution(
+                active_selection,
+                "ethnicity_perceived",
+                "Perceived ethnicity",
+            )
 st.divider()
 
 st.subheader("Stimulus gallery")
