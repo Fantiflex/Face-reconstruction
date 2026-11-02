@@ -39,3 +39,7 @@ models/*.task
 
 # Python package metadata
 *.egg-info/
+
+# Generated participant experiment
+apps/participant/experiment.json
+apps/participant/stimuli/*
