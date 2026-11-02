@@ -159,6 +159,54 @@ def render_distribution(
         hide_index=True,
     )
 
+def sample_stimulus_pool(
+    stimuli: pd.DataFrame,
+    *,
+    group_column: str,
+    target_counts: dict[str, int],
+    random_state: int,
+) -> pd.DataFrame:
+    if group_column not in stimuli.columns:
+        raise ValueError(
+            f"Column not found: {group_column}"
+        )
+
+    selected_parts = []
+
+    for group, target_count in target_counts.items():
+        available = stimuli.loc[
+            stimuli[group_column].astype(str) == group
+        ]
+
+        if target_count > len(available):
+            raise ValueError(
+                f"Requested {target_count} faces for {group}, "
+                f"but only {len(available)} are available."
+            )
+
+        if target_count == 0:
+            continue
+
+        sampled = available.sample(
+            n=target_count,
+            random_state=random_state,
+        )
+
+        selected_parts.append(sampled)
+
+    if not selected_parts:
+        return stimuli.iloc[0:0].copy()
+
+    result = pd.concat(
+        selected_parts,
+        ignore_index=True,
+    )
+
+    return result.sample(
+        frac=1.0,
+        random_state=random_state,
+    ).reset_index(drop=True)
+
 
 def save_selection_to_disk(
     filtered: pd.DataFrame,
@@ -357,6 +405,112 @@ filtered = build_stimuli_table(
 
 st.divider()
 
+st.subheader("Final stimulus pool")
+
+st.caption(
+    "Optionally reduce the eligible stimulus set to a smaller "
+    "experimental pool with controlled group composition."
+)
+
+sampling_mode = st.radio(
+    "Pool selection",
+    options=[
+        "Keep all eligible faces",
+        "Sample a controlled subset",
+    ],
+    horizontal=True,
+)
+
+active_selection = filtered.copy()
+
+if sampling_mode == "Sample a controlled subset":
+    available_sampling_columns = [
+        column
+        for column in [
+            "ethnicity_perceived",
+            "ethnicity_self",
+            "gender_self",
+        ]
+        if column in filtered.columns
+    ]
+
+    sampling_group_column = st.selectbox(
+        "Variable used to control pool composition",
+        options=available_sampling_columns,
+        index=0,
+    )
+
+    sampling_seed = st.number_input(
+        "Sampling seed",
+        min_value=0,
+        value=42,
+        step=1,
+    )
+
+    groups = sorted(
+        filtered[sampling_group_column]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    target_counts = {}
+
+    st.markdown(
+        "**Number of faces to keep per group**"
+    )
+
+    columns = st.columns(
+        min(3, len(groups))
+    )
+
+    for index, group in enumerate(groups):
+        available_count = int(
+            (
+                filtered[sampling_group_column]
+                .astype(str)
+                == group
+            ).sum()
+        )
+
+        with columns[index % len(columns)]:
+            target_count = st.number_input(
+                f"{group}",
+                min_value=0,
+                max_value=available_count,
+                value=available_count,
+                step=1,
+                key=f"pool_count_{group}",
+                help=(
+                    f"{available_count} eligible faces "
+                    f"available for {group}."
+                ),
+            )
+
+        target_counts[group] = int(
+            target_count
+        )
+
+    try:
+        active_selection = sample_stimulus_pool(
+            filtered,
+            group_column=sampling_group_column,
+            target_counts=target_counts,
+            random_state=int(sampling_seed),
+        )
+
+    except ValueError as error:
+        st.error(str(error))
+        active_selection = filtered.iloc[0:0].copy()
+
+    st.metric(
+        "Final pool size",
+        len(active_selection),
+    )
+
+st.divider()
+
 st.subheader("Selection summary")
 
 col1, col2 = st.columns([1, 2])
@@ -384,7 +538,7 @@ with col1:
             "No stimulus matches the current configuration."
         )
     else:
-        csv_data = filtered.to_csv(
+        csv_data = active_selection.to_csv(
             index=False
         ).encode("utf-8")
 
@@ -402,7 +556,7 @@ with col1:
             use_container_width=True,
         ):
             save_selection_to_disk(
-                filtered,
+                active_selection,
                 DEFAULT_SAVE_PATH,
             )
             st.success(
@@ -513,3 +667,5 @@ with st.expander("Raw selected stimulus table"):
         use_container_width=True,
         hide_index=True,
     )
+
+
