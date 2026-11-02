@@ -5,6 +5,8 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from face_reconstruction.data.stimuli import build_stimuli_table
+
 HARMONISED_MANIFEST_PATH = Path(
     "data/interim/cfd_audit/cfd_manifest_harmonised.csv"
 )
@@ -12,11 +14,11 @@ HARMONISED_MANIFEST_PATH = Path(
 IMAGE_DIRECTORY = Path(
     "data/raw/cfd/images"
 )
-DEFAULT_SAVE_PATH = Path(
+
+ACTIVE_STIMULI_PATH = Path(
     "data/processed/stimuli.csv"
 )
 
-from face_reconstruction.data.stimuli import build_stimuli_table
 
 st.set_page_config(
     page_title="Stimuli",
@@ -27,6 +29,8 @@ st.set_page_config(
 
 @st.cache_data
 def load_manifest() -> pd.DataFrame:
+    """Load the full harmonised CFD manifest."""
+
     if not HARMONISED_MANIFEST_PATH.exists():
         raise FileNotFoundError(
             "Harmonised CFD manifest not found: "
@@ -38,7 +42,11 @@ def load_manifest() -> pd.DataFrame:
     )
 
 
-def resolve_image_path(raw_path: str) -> Path:
+def resolve_image_path(
+    raw_path: str,
+) -> Path:
+    """Resolve an image path relative to the repository root."""
+
     path = Path(raw_path)
 
     if path.is_absolute():
@@ -47,10 +55,12 @@ def resolve_image_path(raw_path: str) -> Path:
     return Path.cwd() / path
 
 
-def optional_str_options(
+def get_options(
     table: pd.DataFrame,
     column: str,
 ) -> list[str]:
+    """Return sorted non-null values available in a column."""
+
     if column not in table.columns:
         return []
 
@@ -63,80 +73,16 @@ def optional_str_options(
     )
 
 
-def filter_stimuli(
-    stimuli: pd.DataFrame,
-    *,
-    selected_genders: list[str],
-    selected_self_ethnicities: list[str],
-    selected_perceived_ethnicities: list[str],
-    selection_mode: str,
-    minimum_perceived_ethnicity: float,
-    minimum_perceived_gender: float,
-) -> pd.DataFrame:
-    filtered = stimuli.copy()
-
-    if selected_genders and "gender_self" in filtered.columns:
-        filtered = filtered.loc[
-            filtered["gender_self"]
-            .astype(str)
-            .isin(selected_genders)
-        ]
-
-    if selection_mode in {"self", "both"} and (
-        selected_self_ethnicities
-        and "ethnicity_self" in filtered.columns
-    ):
-        filtered = filtered.loc[
-            filtered["ethnicity_self"]
-            .astype(str)
-            .isin(selected_self_ethnicities)
-        ]
-
-    if selection_mode in {"perceived", "both"}:
-        if (
-            selected_perceived_ethnicities
-            and "ethnicity_perceived" in filtered.columns
-        ):
-            filtered = filtered.loc[
-                filtered["ethnicity_perceived"]
-                .astype(str)
-                .isin(selected_perceived_ethnicities)
-            ]
-
-        if (
-            "ethnicity_perceived_probability"
-            in filtered.columns
-        ):
-            filtered = filtered.loc[
-                pd.to_numeric(
-                    filtered[
-                        "ethnicity_perceived_probability"
-                    ],
-                    errors="coerce",
-                )
-                >= minimum_perceived_ethnicity
-            ]
-
-    if "gender_perceived_probability" in filtered.columns:
-        filtered = filtered.loc[
-            pd.to_numeric(
-                filtered[
-                    "gender_perceived_probability"
-                ],
-                errors="coerce",
-            )
-            >= minimum_perceived_gender
-        ]
-
-    return filtered.reset_index(drop=True)
-
-
 def render_distribution(
     table: pd.DataFrame,
     column: str,
     title: str,
 ) -> None:
-    st.markdown(f"**{title}**")
+    """Display counts for a categorical variable."""
+
+    st.markdown(
+        f"**{title}**"
+    )
 
     if column not in table.columns:
         st.info(
@@ -159,6 +105,7 @@ def render_distribution(
         hide_index=True,
     )
 
+
 def sample_stimulus_pool(
     stimuli: pd.DataFrame,
     *,
@@ -166,16 +113,20 @@ def sample_stimulus_pool(
     target_counts: dict[str, int],
     random_state: int,
 ) -> pd.DataFrame:
+    """Sample a controlled number of stimuli from each group."""
+
     if group_column not in stimuli.columns:
         raise ValueError(
             f"Column not found: {group_column}"
         )
 
-    selected_parts = []
+    selected_parts: list[pd.DataFrame] = []
 
     for group, target_count in target_counts.items():
         available = stimuli.loc[
-            stimuli[group_column].astype(str) == group
+            stimuli[group_column]
+            .astype(str)
+            .eq(group)
         ]
 
         if target_count > len(available):
@@ -192,47 +143,72 @@ def sample_stimulus_pool(
             random_state=random_state,
         )
 
-        selected_parts.append(sampled)
+        selected_parts.append(
+            sampled
+        )
 
     if not selected_parts:
-        return stimuli.iloc[0:0].copy()
+        return stimuli.iloc[
+            0:0
+        ].copy()
 
     result = pd.concat(
         selected_parts,
         ignore_index=True,
     )
 
-    return result.sample(
-        frac=1.0,
-        random_state=random_state,
-    ).reset_index(drop=True)
+    return (
+        result.sample(
+            frac=1.0,
+            random_state=random_state,
+        )
+        .reset_index(drop=True)
+    )
 
 
-def save_selection_to_disk(
-    filtered: pd.DataFrame,
-    save_path: Path,
+def save_active_stimuli(
+    stimuli: pd.DataFrame,
 ) -> None:
-    save_path.parent.mkdir(
+    """Save the final experimental stimulus pool."""
+
+    ACTIVE_STIMULI_PATH.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
-    filtered.to_csv(save_path, index=False)
+
+    stimuli.to_csv(
+        ACTIVE_STIMULI_PATH,
+        index=False,
+    )
 
 
 st.title("Stimuli")
+
 st.caption(
-    "Configure, inspect, and export the current face stimulus set."
+    "Configure the eligible face set and define the final "
+    "experimental stimulus pool."
 )
+
 
 try:
     manifest = load_manifest()
+
 except FileNotFoundError as error:
-    st.error(str(error))
+    st.error(
+        str(error)
+    )
     st.stop()
+
+
+# ---------------------------------------------------------------------
+# Dataset overview
+# ---------------------------------------------------------------------
 
 st.divider()
 
-st.subheader("Current dataset")
+st.subheader(
+    "Source dataset"
+)
 
 col1, col2, col3, col4 = st.columns(4)
 
@@ -268,8 +244,11 @@ with col3:
 
 with col4:
     value = (
-        manifest["ethnicity_perceived"].nunique()
-        if "ethnicity_perceived" in manifest.columns
+        manifest[
+            "ethnicity_perceived"
+        ].nunique()
+        if "ethnicity_perceived"
+        in manifest.columns
         else "—"
     )
 
@@ -278,35 +257,41 @@ with col4:
         value,
     )
 
+
+# ---------------------------------------------------------------------
+# Eligibility filters
+# ---------------------------------------------------------------------
+
 st.divider()
 
-st.subheader("Stimulus configuration")
-
-gender_options = sorted(
-    manifest["gender_self"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist()
+st.subheader(
+    "1. Eligibility filters"
 )
 
-self_ethnicity_options = sorted(
-    manifest["ethnicity_self"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist()
+st.caption(
+    "Choose which faces are eligible before defining the "
+    "final experimental pool."
 )
 
-perceived_ethnicity_options = sorted(
-    manifest["ethnicity_perceived"]
-    .dropna()
-    .astype(str)
-    .unique()
-    .tolist()
+
+gender_options = get_options(
+    manifest,
+    "gender_self",
 )
+
+self_ethnicity_options = get_options(
+    manifest,
+    "ethnicity_self",
+)
+
+perceived_ethnicity_options = get_options(
+    manifest,
+    "ethnicity_perceived",
+)
+
 
 left, right = st.columns(2)
+
 
 with left:
     selection_mode = st.selectbox(
@@ -318,9 +303,8 @@ with left:
         ],
         index=0,
         help=(
-            "Choose whether stimulus selection uses "
-            "perceived ethnicity, self-reported ethnicity, "
-            "or both simultaneously."
+            "Choose whether inclusion criteria use perceived "
+            "ethnicity, self-reported ethnicity, or both."
         ),
     )
 
@@ -329,7 +313,7 @@ with left:
         options=gender_options,
         default=gender_options,
         help=(
-            "Filter by self-reported gender."
+            "Filter using self-reported gender."
         ),
     )
 
@@ -337,21 +321,16 @@ with left:
         "Self-reported ethnicities",
         options=self_ethnicity_options,
         default=self_ethnicity_options,
-        help=(
-            "Used when selection mode includes "
-            "`self`."
-        ),
+        disabled=selection_mode == "perceived",
     )
+
 
 with right:
     selected_perceived_ethnicities = st.multiselect(
         "Perceived ethnicities",
         options=perceived_ethnicity_options,
         default=perceived_ethnicity_options,
-        help=(
-            "Used when selection mode includes "
-            "`perceived`."
-        ),
+        disabled=selection_mode == "self",
     )
 
     minimum_perceived_ethnicity = st.slider(
@@ -360,9 +339,10 @@ with right:
         max_value=1.0,
         value=0.90,
         step=0.01,
+        disabled=selection_mode == "self",
         help=(
-            "Lower bound on the dominant perceived "
-            "ethnicity probability."
+            "Minimum confidence required for the dominant "
+            "perceived ethnicity."
         ),
     )
 
@@ -373,44 +353,80 @@ with right:
         value=0.90,
         step=0.01,
         help=(
-            "Lower bound on perceived gender "
-            "probability."
+            "Minimum confidence required for perceived gender."
         ),
     )
 
-filtered = build_stimuli_table(
-    manifest=manifest,
-    image_directory=IMAGE_DIRECTORY,
-    genders=(
-        selected_genders
-        if selected_genders
-        else None
-    ),
-    minimum_perceived_gender=minimum_perceived_gender,
-    ethnicities_self=(
-        selected_self_ethnicities
-        if selected_self_ethnicities
-        else None
-    ),
-    ethnicities_perceived=(
-        selected_perceived_ethnicities
-        if selected_perceived_ethnicities
-        else None
-    ),
-    minimum_perceived_probability=(
-        minimum_perceived_ethnicity
-    ),
-    ethnicity_selection_mode=selection_mode,
+
+try:
+    filtered = build_stimuli_table(
+        manifest=manifest,
+        image_directory=IMAGE_DIRECTORY,
+        genders=(
+            selected_genders
+            if selected_genders
+            else None
+        ),
+        minimum_perceived_gender=(
+            minimum_perceived_gender
+        ),
+        ethnicities_self=(
+            selected_self_ethnicities
+            if (
+                selection_mode
+                in {"self", "both"}
+                and selected_self_ethnicities
+            )
+            else None
+        ),
+        ethnicities_perceived=(
+            selected_perceived_ethnicities
+            if (
+                selection_mode
+                in {"perceived", "both"}
+                and selected_perceived_ethnicities
+            )
+            else None
+        ),
+        minimum_perceived_probability=(
+            minimum_perceived_ethnicity
+            if selection_mode
+            in {"perceived", "both"}
+            else None
+        ),
+        ethnicity_selection_mode=(
+            selection_mode
+        ),
+    )
+
+except (ValueError, FileNotFoundError) as error:
+    st.error(
+        str(error)
+    )
+    st.stop()
+
+
+st.metric(
+    "Eligible faces",
+    len(filtered),
 )
+
+
+# ---------------------------------------------------------------------
+# Final pool
+# ---------------------------------------------------------------------
 
 st.divider()
 
-st.subheader("Final stimulus pool")
+st.subheader(
+    "2. Final stimulus pool"
+)
 
 st.caption(
-    "Optionally reduce the eligible stimulus set to a smaller "
-    "experimental pool with controlled group composition."
+    "Keep all eligible faces or draw a smaller controlled "
+    "experimental pool."
 )
+
 
 sampling_mode = st.radio(
     "Pool selection",
@@ -421,7 +437,16 @@ sampling_mode = st.radio(
     horizontal=True,
 )
 
-active_selection = filtered.copy()
+
+active_selection = (
+    filtered.copy()
+)
+
+
+sampling_group_column = None
+sampling_seed = None
+target_counts: dict[str, int] = {}
+
 
 if sampling_mode == "Sample a controlled subset":
     available_sampling_columns = [
@@ -434,103 +459,228 @@ if sampling_mode == "Sample a controlled subset":
         if column in filtered.columns
     ]
 
-    sampling_group_column = st.selectbox(
-        "Variable used to control pool composition",
-        options=available_sampling_columns,
-        index=0,
-    )
-
-    sampling_seed = st.number_input(
-        "Sampling seed",
-        min_value=0,
-        value=42,
-        step=1,
-    )
-
-    groups = sorted(
-        filtered[sampling_group_column]
-        .dropna()
-        .astype(str)
-        .unique()
-        .tolist()
-    )
-
-    target_counts = {}
-
-    st.markdown(
-        "**Number of faces to keep per group**"
-    )
-
-    columns = st.columns(
-        min(3, len(groups))
-    )
-
-    for index, group in enumerate(groups):
-        available_count = int(
-            (
-                filtered[sampling_group_column]
-                .astype(str)
-                == group
-            ).sum()
+    if not available_sampling_columns:
+        st.error(
+            "No categorical variable is available "
+            "for controlled sampling."
         )
 
-        with columns[index % len(columns)]:
-            target_count = st.number_input(
-                f"{group}",
-                min_value=0,
-                max_value=available_count,
-                value=available_count,
-                step=1,
-                key=f"pool_count_{group}",
-                help=(
-                    f"{available_count} eligible faces "
-                    f"available for {group}."
-                ),
+        active_selection = (
+            filtered.iloc[0:0].copy()
+        )
+
+    else:
+        col1, col2 = st.columns(2)
+
+        with col1:
+            sampling_group_column = st.selectbox(
+                "Variable used to control pool composition",
+                options=available_sampling_columns,
+                index=0,
             )
 
-        target_counts[group] = int(
-            target_count
+        with col2:
+            sampling_seed = st.number_input(
+                "Sampling seed",
+                min_value=0,
+                value=42,
+                step=1,
+            )
+
+        groups = sorted(
+            filtered[
+                sampling_group_column
+            ]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
         )
 
-    try:
-        active_selection = sample_stimulus_pool(
-            filtered,
-            group_column=sampling_group_column,
-            target_counts=target_counts,
-            random_state=int(sampling_seed),
+        st.markdown(
+            "**Number of faces to keep per group**"
         )
 
-    except ValueError as error:
-        st.error(str(error))
-        active_selection = filtered.iloc[0:0].copy()
+        if not groups:
+            st.warning(
+                "No groups are available after filtering."
+            )
 
-    st.metric(
-        "Final pool size",
-        len(active_selection),
+            active_selection = (
+                filtered.iloc[0:0].copy()
+            )
+
+        else:
+            columns = st.columns(
+                min(
+                    3,
+                    len(groups),
+                )
+            )
+
+            for index, group in enumerate(
+                groups
+            ):
+                available_count = int(
+                    (
+                        filtered[
+                            sampling_group_column
+                        ]
+                        .astype(str)
+                        .eq(group)
+                    ).sum()
+                )
+
+                with columns[
+                    index % len(columns)
+                ]:
+                    target_count = st.number_input(
+                        f"{group}",
+                        min_value=0,
+                        max_value=available_count,
+                        value=available_count,
+                        step=1,
+                        key=(
+                            f"pool_count_"
+                            f"{sampling_group_column}_"
+                            f"{group}"
+                        ),
+                        help=(
+                            f"{available_count} eligible "
+                            f"faces available."
+                        ),
+                    )
+
+                target_counts[group] = int(
+                    target_count
+                )
+
+            try:
+                active_selection = sample_stimulus_pool(
+                    filtered,
+                    group_column=(
+                        sampling_group_column
+                    ),
+                    target_counts=target_counts,
+                    random_state=int(
+                        sampling_seed
+                    ),
+                )
+
+            except ValueError as error:
+                st.error(
+                    str(error)
+                )
+
+                active_selection = (
+                    filtered.iloc[
+                        0:0
+                    ].copy()
+                )
+
+
+st.metric(
+    "Final pool size",
+    len(active_selection),
+)
+
+
+# ---------------------------------------------------------------------
+# Save active stimulus set
+# ---------------------------------------------------------------------
+
+st.markdown(
+    "### Active stimulus set"
+)
+
+st.caption(
+    "Saving this pool makes it the input used automatically "
+    "by the Pair Design page."
+)
+
+
+save_col, download_col = st.columns(2)
+
+
+with save_col:
+    if st.button(
+        "Save as active stimulus set",
+        type="primary",
+        use_container_width=True,
+        disabled=active_selection.empty,
+    ):
+        save_active_stimuli(
+            active_selection
+        )
+
+        st.success(
+            "Active stimulus set saved to "
+            f"{ACTIVE_STIMULI_PATH}"
+        )
+
+
+with download_col:
+    csv_data = (
+        active_selection.to_csv(
+            index=False
+        )
+        .encode("utf-8")
     )
 
+    st.download_button(
+        "Download stimulus pool CSV",
+        data=csv_data,
+        file_name="stimuli.csv",
+        mime="text/csv",
+        use_container_width=True,
+        disabled=active_selection.empty,
+    )
+
+
+# ---------------------------------------------------------------------
+# Selection summary
+# ---------------------------------------------------------------------
+
 st.divider()
+
 
 with st.expander(
     "Selection summary",
     expanded=False,
 ):
-    col1, col2 = st.columns([1, 2])
+    col1, col2 = st.columns(
+        [1, 2]
+    )
 
     with col1:
         st.metric(
-            "Selected faces",
+            "Eligible faces",
+            len(filtered),
+        )
+
+        st.metric(
+            "Final pool",
             len(active_selection),
         )
 
-        st.write("**Current configuration**")
+        st.markdown(
+            "**Eligibility configuration**"
+        )
 
         st.write(
             {
-                "selection_mode": selection_mode,
-                "genders": selected_genders,
-                "ethnicities_self": selected_self_ethnicities,
-                "ethnicities_perceived": selected_perceived_ethnicities,
+                "selection_mode": (
+                    selection_mode
+                ),
+                "genders": (
+                    selected_genders
+                ),
+                "ethnicities_self": (
+                    selected_self_ethnicities
+                ),
+                "ethnicities_perceived": (
+                    selected_perceived_ethnicities
+                ),
                 "minimum_perceived_ethnicity": (
                     minimum_perceived_ethnicity
                 ),
@@ -540,8 +690,32 @@ with st.expander(
             }
         )
 
+        if (
+            sampling_mode
+            == "Sample a controlled subset"
+        ):
+            st.markdown(
+                "**Pool sampling configuration**"
+            )
+
+            st.write(
+                {
+                    "group_column": (
+                        sampling_group_column
+                    ),
+                    "target_counts": (
+                        target_counts
+                    ),
+                    "sampling_seed": (
+                        sampling_seed
+                    ),
+                }
+            )
+
     with col2:
-        dist1, dist2, dist3 = st.columns(3)
+        dist1, dist2, dist3 = st.columns(
+            3
+        )
 
         with dist1:
             render_distribution(
@@ -563,14 +737,24 @@ with st.expander(
                 "ethnicity_perceived",
                 "Perceived ethnicity",
             )
+
+
+# ---------------------------------------------------------------------
+# Gallery
+# ---------------------------------------------------------------------
+
 st.divider()
 
-st.subheader("Stimulus gallery")
+st.subheader(
+    "Stimulus gallery"
+)
+
 
 if active_selection.empty:
     st.info(
         "No image to display for the current selection."
     )
+
 else:
     with st.expander(
         f"Show selected faces ({len(active_selection)})",
@@ -584,8 +768,10 @@ else:
             step=1,
         )
 
-        records = active_selection.to_dict(
-            orient="records"
+        records = (
+            active_selection.to_dict(
+                orient="records"
+            )
         )
 
         for start in range(
@@ -594,7 +780,8 @@ else:
             columns_per_row,
         ):
             row_records = records[
-                start : start + columns_per_row
+                start : start
+                + columns_per_row
             ]
 
             columns = st.columns(
@@ -606,13 +793,19 @@ else:
                 row_records,
             ):
                 with column:
-                    image_path_value = record.get(
-                        "image_path",
-                        "",
+                    image_path_value = (
+                        record.get(
+                            "image_path",
+                            "",
+                        )
                     )
 
-                    image_path = resolve_image_path(
-                        str(image_path_value)
+                    image_path = (
+                        resolve_image_path(
+                            str(
+                                image_path_value
+                            )
+                        )
                     )
 
                     if image_path.exists():
@@ -620,6 +813,7 @@ else:
                             str(image_path),
                             use_container_width=True,
                         )
+
                     else:
                         st.warning(
                             "Image not found"
@@ -653,13 +847,21 @@ else:
                             "Self: "
                             f"{record['ethnicity_self']}"
                         )
+
+
+# ---------------------------------------------------------------------
+# Raw data
+# ---------------------------------------------------------------------
+
 st.divider()
 
-with st.expander("Raw selected stimulus table"):
+
+with st.expander(
+    "Show raw final stimulus table",
+    expanded=False,
+):
     st.dataframe(
-        filtered,
+        active_selection,
         use_container_width=True,
         hide_index=True,
     )
-
-
