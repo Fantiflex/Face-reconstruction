@@ -191,6 +191,37 @@ except (FileNotFoundError, ValueError) as error:
     st.error(str(error))
     st.stop()
 
+if PAIRS_OUTPUT_PATH.exists():
+    existing_pairs = pd.read_csv(
+        PAIRS_OUTPUT_PATH
+    )
+
+    active_face_ids = set(
+        stimuli["face_id"]
+        .astype(str)
+    )
+
+    pair_face_ids = set(
+        pd.concat(
+            [
+                existing_pairs["model_left"],
+                existing_pairs["model_right"],
+            ]
+        )
+        .astype(str)
+    )
+
+    invalid_faces = (
+        pair_face_ids - active_face_ids
+    )
+
+    if invalid_faces:
+        st.warning(
+            "The saved pair design is outdated and "
+            "does not match the current active stimulus pool. "
+            "Generate and save a new pair design."
+        )
+
 
 face_ids = (
     stimuli["face_id"]
@@ -532,7 +563,30 @@ if st.button(
         pairs = add_pair_ids(
             pairs
         )
+        
+        generated_face_ids = set(
+            pd.concat(
+                [
+                    pairs["model_left"],
+                    pairs["model_right"],
+                ]
+            )
+            .astype(str)
+        )
 
+        invalid_faces = (
+            generated_face_ids
+            - active_face_ids
+        )
+
+        if invalid_faces:
+            raise ValueError(
+                "Generated pairs contain faces that are not "
+                "in the active stimulus pool: "
+                + ", ".join(
+                    sorted(invalid_faces)
+                )
+            )
         st.session_state[
             "generated_pairs"
         ] = pairs
