@@ -591,74 +591,92 @@ st.divider()
 
 st.subheader("Stimulus gallery")
 
-if filtered.empty:
+if active_selection.empty:
     st.info(
         "No image to display for the current selection."
     )
 else:
-    columns_per_row = st.slider(
-        "Images per row",
-        min_value=3,
-        max_value=8,
-        value=6,
-        step=1,
-    )
-
-    records = filtered.to_dict(
-        orient="records"
-    )
-
-    for start in range(
-        0,
-        len(records),
-        columns_per_row,
+    with st.expander(
+        f"Show selected faces ({len(active_selection)})",
+        expanded=False,
     ):
-        row_records = records[
-            start : start + columns_per_row
-        ]
-
-        columns = st.columns(
-            columns_per_row
+        columns_per_row = st.slider(
+            "Images per row",
+            min_value=3,
+            max_value=8,
+            value=6,
+            step=1,
         )
 
-        for column, record in zip(
-            columns,
-            row_records,
+        records = active_selection.to_dict(
+            orient="records"
+        )
+
+        for start in range(
+            0,
+            len(records),
+            columns_per_row,
         ):
-            with column:
-                image_path_value = record.get(
-                    "image_path",
-                    "",
-                )
-                image_path = resolve_image_path(
-                    str(image_path_value)
-                )
+            row_records = records[
+                start : start + columns_per_row
+            ]
 
-                if image_path.exists():
-                    st.image(
-                        str(image_path),
-                        use_container_width=True,
-                    )
-                else:
-                    st.warning(
-                        "Image not found"
-                    )
+            columns = st.columns(
+                columns_per_row
+            )
 
-                face_id = str(
-                    record.get("face_id", "unknown")
-                )
-                st.caption(face_id)
-
-                if "ethnicity_perceived" in record:
-                    st.write(
-                        f"Perceived: {record['ethnicity_perceived']}"
+            for column, record in zip(
+                columns,
+                row_records,
+            ):
+                with column:
+                    image_path_value = record.get(
+                        "image_path",
+                        "",
                     )
 
-                if "ethnicity_self" in record:
-                    st.write(
-                        f"Self: {record['ethnicity_self']}"
+                    image_path = resolve_image_path(
+                        str(image_path_value)
                     )
 
+                    if image_path.exists():
+                        st.image(
+                            str(image_path),
+                            use_container_width=True,
+                        )
+                    else:
+                        st.warning(
+                            "Image not found"
+                        )
+
+                    face_id = str(
+                        record.get(
+                            "face_id",
+                            "unknown",
+                        )
+                    )
+
+                    st.caption(
+                        face_id
+                    )
+
+                    if (
+                        "ethnicity_perceived"
+                        in record
+                    ):
+                        st.write(
+                            "Perceived: "
+                            f"{record['ethnicity_perceived']}"
+                        )
+
+                    if (
+                        "ethnicity_self"
+                        in record
+                    ):
+                        st.write(
+                            "Self: "
+                            f"{record['ethnicity_self']}"
+                        )
 st.divider()
 
 with st.expander("Raw selected stimulus table"):
