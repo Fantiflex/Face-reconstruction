@@ -7,6 +7,9 @@ pillow
 opencv-python
 mediapipe
 
+[app]
+streamlit
+
 [dev]
 pytest
 ruff
