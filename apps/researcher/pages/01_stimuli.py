@@ -12,8 +12,9 @@ HARMONISED_MANIFEST_PATH = Path(
 IMAGE_DIRECTORY = Path(
     "data/raw/cfd/images"
 )
-
-DEFAULT_SAVE_PATH = Path("data/processed/stimuli_selected.csv")
+DEFAULT_SAVE_PATH = Path(
+    "data/processed/stimuli.csv"
+)
 
 from face_reconstruction.data.stimuli import build_stimuli_table
 
@@ -396,7 +397,8 @@ with col1:
         )
 
         if st.button(
-            "Save selection to data/processed/stimuli_selected.csv",
+            "Save as active stimulus set",
+            type="primary",
             use_container_width=True,
         ):
             save_selection_to_disk(
