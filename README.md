@@ -1,16 +1,25 @@
 # Face Reconstruction
 
-A research pipeline for reconstructing participant-specific facial prototypes from pairwise preference judgments.
+A research framework for reconstructing participant-specific facial prototypes from pairwise face judgments.
 
-The project estimates latent preferences over a standardized set of faces using a Bradley–Terry model and transforms these estimates into reconstruction weights. Facial geometry is extracted with MediaPipe Face Landmarker, aligned to a common coordinate system, and reconstructed using a shared Delaunay triangulation with piecewise-affine warping.
+The project combines experimental design, Bradley–Terry preference modeling, facial landmark extraction, geometric alignment, Delaunay-based morphing, and participant-specific reconstruction in a reproducible pipeline.
+
+The repository now provides two user-facing applications:
+
+- a **researcher dashboard** for configuring experiments and analysing participant responses;
+- a **participant application** for collecting pairwise face choices.
+
+Reusable scientific methods are implemented independently in `src/face_reconstruction/` so that the applications, command-line tools, and tests all rely on the same core implementation.
+
+---
 
 ## Overview
 
-The pipeline is designed to answer the following question:
+The project addresses the following question:
 
-**Given a participant's repeated choices between pairs of faces, what facial prototype best represents their latent preference structure?**
+> Given a participant's repeated choices between pairs of faces, what facial prototype best represents their latent preference structure?
 
-The full pipeline is:
+The main analysis pipeline is:
 
 ```text
 Pairwise face judgments
@@ -32,84 +41,348 @@ Piecewise-affine warping
 Weighted facial prototype
 ```
 
-The implementation separates experimental design, statistical modeling, facial geometry, reconstruction, diagnostics, and validation into reusable Python modules.
+The experimental workflow is managed through the researcher and participant applications:
 
+```text
+Full CFD manifest
+        ↓
+Researcher app — Stimuli
+        ↓
+Active stimulus pool
+        ↓
+Researcher app — Pair design
+        ↓
+Participant experiment
+        ↓
+Pairwise participant responses
+        ↓
+Researcher app — Bradley–Terry analysis
+        ↓
+Reconstruction weights
+        ↓
+Facial reconstruction
+```
 
+---
 
-## Method
+## Applications
 
-The reconstruction pipeline is organized as a sequence of reproducible steps.
+### Researcher application
 
-### 1. Audit the Chicago Face Database metadata
+The researcher dashboard is implemented with Streamlit:
 
-`scripts/01_audit_cfd_manifest.py`
+```text
+apps/researcher/
+```
 
-Validates the available CFD metadata and image inventory before stimulus selection.
+Run it from the repository root with:
 
-### 2. Build the stimulus set
+```bash
+streamlit run apps/researcher/app.py
+```
 
-`scripts/02_build_stimuli.py`
+The dashboard is intended to become the main operational interface for the pipeline, so routine experimental use does not require manually running the numbered scripts.
 
-Constructs the standardized candidate face set used throughout the experiment and reconstruction pipeline.
+Current pages include:
 
-### 3. Generate pairwise comparisons
+```text
+01 — Stimuli
+02 — Pairs
+03 — Experiment
+04 — Bradley–Terry
+```
 
-`scripts/03_generate_pairs.py`
+### 01 — Stimuli
 
-Creates balanced face pairs for participant judgments while controlling stimulus exposure across comparisons.
+The Stimuli page starts from the full harmonised Chicago Face Database manifest:
 
-### 4. Simulate participant responses
+```text
+data/interim/cfd_audit/cfd_manifest_harmonised.csv
+```
 
-`scripts/04_simulate_participants.py`
+Researchers can configure:
 
-Generates synthetic pairwise-choice data for testing and validating the statistical pipeline before collecting real participant responses.
+- self-reported gender;
+- self-reported ethnicity;
+- perceived ethnicity;
+- selection mode (`self`, `perceived`, or `both`);
+- minimum perceived-ethnicity response proportion;
+- minimum perceived-gender response proportion.
 
-### 5. Estimate Bradley–Terry utilities
+After applying the eligibility criteria, the resulting candidate pool can be further subsampled.
 
-`scripts/05_fit_bradley_terry.py`
+For example:
 
-Fits a participant-specific Bradley–Terry model to pairwise choices and estimates one latent utility score per candidate face.
+```text
+Eligible faces: 275
 
-These utilities are converted into reconstruction weights used in the final morph.
+Final experimental pool:
+Black-perceived    40
+White-perceived    10
 
-### 6. Extract facial landmarks
+Total              50
+```
 
-`scripts/06_extract_landmarks.py`
+The subsampling stage supports reproducible random selection using an explicit seed.
 
-Uses MediaPipe Face Landmarker to extract 478 facial landmarks from each stimulus image and performs landmark-level quality control.
+The active experimental pool is saved to:
 
-### 7. Visualize landmark quality
+```text
+data/processed/stimuli.csv
+```
 
-`scripts/07_visualise_landmarks.py`
+This file becomes the input for the Pair Design page.
 
-Produces diagnostic overlays for manually inspecting landmark placement and identifying failed detections.
+---
 
-### 8. Align faces
+### 02 — Pair Design
 
-`scripts/08_align_faces.py`
+The Pairs page reads the active stimulus pool from:
 
-Aligns faces to a shared coordinate system using eye-based similarity transforms so that geometry and texture can be meaningfully compared across stimuli.
+```text
+data/processed/stimuli.csv
+```
 
-### 9. Build a common Delaunay topology
+The researcher can configure the number of comparisons and choose among multiple pair-generation strategies.
 
-`scripts/09_build_common_triangulation.py`
+#### Balanced design
 
-Selects a stable subset of facial landmarks, adds boundary anchors, and computes a common Delaunay triangulation on the mean aligned facial shape.
+Attempts to distribute face appearances approximately evenly across comparisons.
 
-The same triangle topology is then validated across all aligned faces.
+#### Random design
 
-### 10. Reconstruct the participant-specific facial prototype
+Samples unique pairs without explicitly balancing individual exposure.
 
-`scripts/10_morph_delaunay.py`
+#### Stratified design
 
-Builds a weighted target facial shape, piecewise-affine warps each aligned face to that target geometry, and combines the warped textures using participant-specific reconstruction weights.
+Controls the proportion of pair types according to a stimulus variable such as:
 
-The final output is a facial prototype representing the participant's latent preference structure.
+```text
+ethnicity_perceived
+ethnicity_self
+gender_self
+```
 
+For example, with Black- and White-perceived faces:
 
+```text
+Black × Black      20%
+Black × White      60%
+White × White      20%
+```
 
+Within these constraints, the generator attempts to balance individual face exposure while avoiding duplicate pairs.
 
-## Repository Structure
+The active design is saved to:
+
+```text
+data/processed/pairs.csv
+```
+
+A pair design must be regenerated whenever the active stimulus pool changes.
+
+---
+
+### 03 — Participant Experiment
+
+The Experiment page combines:
+
+```text
+data/processed/stimuli.csv
+data/processed/pairs.csv
+```
+
+and builds the participant-facing experiment.
+
+It validates that every face referenced by the pair design is still present in the active stimulus pool.
+
+The researcher can configure participant-task settings such as:
+
+- trial randomization;
+- optional response deadlines.
+
+The generated participant experiment consists of:
+
+```text
+apps/participant/experiment.json
+apps/participant/stimuli/
+```
+
+These files are generated locally and are not committed to the repository.
+
+---
+
+### 04 — Bradley–Terry Analysis
+
+The Bradley–Terry page allows researchers to upload participant-response JSON files and estimate participant-specific latent face preferences.
+
+Expected response fields include:
+
+```text
+participant_id
+trial_index
+pair_id
+model_left
+model_right
+selected_model
+response_time_ms
+```
+
+For each participant, the application estimates one latent utility parameter per face:
+
+\[
+\theta_i
+\]
+
+with pairwise choice probability
+
+\[
+P(i \succ j)
+=
+\frac{\exp(\theta_i)}
+{\exp(\theta_i)+\exp(\theta_j)}.
+\]
+
+The model uses L2 regularization for stability.
+
+The resulting latent scores are centred, ranked, and converted into reconstruction weights through a temperature-controlled softmax:
+
+\[
+w_i
+=
+\frac{\exp(\theta_i/T)}
+{\sum_j \exp(\theta_j/T)}.
+\]
+
+Typical outputs include:
+
+```text
+participant_id
+face_id
+theta
+rank
+standard_error
+weight
+```
+
+The dashboard displays latent preference scores and reconstruction weights and allows the results to be downloaded or saved for later reconstruction.
+
+---
+
+## Participant application
+
+The participant-facing application is located in:
+
+```text
+apps/participant/
+```
+
+It is intentionally lightweight and implemented using:
+
+```text
+HTML
+CSS
+JavaScript
+```
+
+Its responsibility is limited to experimental presentation and response collection.
+
+The participant application:
+
+1. loads the generated `experiment.json`;
+2. presents one face pair at a time;
+3. records the participant's selected face;
+4. records response time and trial metadata;
+5. exports or submits the resulting response data.
+
+The participant application does **not** perform:
+
+- stimulus selection;
+- pair generation;
+- Bradley–Terry fitting;
+- landmark extraction;
+- geometric processing;
+- facial reconstruction.
+
+Those operations belong to the researcher application and the reusable Python package.
+
+### Response format
+
+Each trial produces a response record such as:
+
+```json
+{
+  "participant_id": "P001",
+  "trial_index": 12,
+  "pair_id": "PAIR_00012",
+  "model_left": "BM-001",
+  "model_right": "WM-012",
+  "selected_model": "BM-001",
+  "response_time_ms": 1342
+}
+```
+
+These responses are directly compatible with the Bradley–Terry analysis.
+
+The intended production flow is:
+
+```text
+Participant task
+        ↓
+JATOS
+        ↓
+Participant response JSON
+        ↓
+Researcher dashboard
+        ↓
+Bradley–Terry analysis
+```
+
+---
+
+## Scientific architecture
+
+Reusable scientific code lives in:
+
+```text
+src/face_reconstruction/
+```
+
+The applications call these modules rather than reimplementing the underlying methods.
+
+```text
+apps/researcher/
+        │
+        ▼
+src/face_reconstruction/
+        │
+        ├── data/
+        ├── experiment/
+        ├── models/
+        ├── geometry/
+        ├── reconstruction/
+        ├── diagnostics/
+        ├── validation/
+        └── utils/
+        │
+        ▼
+apps/participant/
+```
+
+Main package responsibilities:
+
+- `data/`: CFD metadata handling and stimulus construction;
+- `experiment/`: pair generation and experimental-design utilities;
+- `models/`: Bradley–Terry estimation and reconstruction weighting;
+- `geometry/`: landmark extraction, alignment, triangulation, and warping;
+- `reconstruction/`: weighted facial morphing;
+- `diagnostics/`: experiment and model diagnostics;
+- `validation/`: validation of experimental inputs and outputs;
+- `utils/`: shared utilities and I/O.
+
+---
+
+## Repository structure
 
 ```text
 Face_Reconstruction/
@@ -119,16 +392,15 @@ Face_Reconstruction/
 │   │   ├── pages/
 │   │   │   ├── 01_stimuli.py
 │   │   │   ├── 02_pairs.py
-│   │   │   └── 03_experiment.py
+│   │   │   ├── 03_experiment.py
+│   │   │   └── 04_bradley_terry.py
 │   │   └── README.md
 │   │
 │   └── participant/
 │       ├── index.html
 │       ├── script.js
 │       ├── style.css
-│       ├── README.md
-│       ├── experiment.json        # generated locally, not versioned
-│       └── stimuli/               # generated locally, not versioned
+│       └── README.md
 │
 ├── src/
 │   └── face_reconstruction/
@@ -163,149 +435,11 @@ Face_Reconstruction/
 └── README.md
 ```
 
-## Applications
+The `scripts/` directory is retained as a command-line interface for development, debugging, batch execution, and reproducibility.
 
-The project provides two separate user-facing applications built on top of the reusable scientific code in `src/face_reconstruction/`.
+The long-term goal is that normal experimental use can be completed entirely through the researcher and participant applications.
 
-### Researcher application
-
-The Streamlit researcher dashboard is located in:
-
-```text
-apps/researcher/
-```
-
-It is intended to become the main interface for configuring and running the experimental and reconstruction pipeline without editing Python scripts manually.
-
-The current workflow is:
-
-```text
-Full CFD manifest
-        ↓
-01 — Stimuli
-        ↓
-Active stimulus pool
-data/processed/stimuli.csv
-        ↓
-02 — Pairs
-        ↓
-Active pair design
-data/processed/pairs.csv
-        ↓
-03 — Experiment
-        ↓
-Participant experiment package
-apps/participant/experiment.json
-apps/participant/stimuli/
-```
-
-The dashboard currently supports:
-
-- demographic and perceptual filtering of CFD faces;
-- controlled subsampling of the final experimental face pool;
-- reproducible random sampling through explicit seeds;
-- balanced or group-stratified pair generation;
-- control over pair-type proportions;
-- generation of the participant experiment package.
-
-Run the researcher application from the repository root with:
-
-```bash
-streamlit run apps/researcher/app.py
-```
-
-See `apps/researcher/README.md` for details.
-
-### Participant application
-
-The participant-facing task is located in:
-
-```text
-apps/participant/
-```
-
-It is a lightweight HTML/CSS/JavaScript application that presents pairwise face comparisons generated by the researcher application.
-
-The participant application does not implement stimulus selection, Bradley–Terry estimation, facial geometry, or reconstruction. Its responsibility is limited to:
-
-1. loading the generated experiment configuration;
-2. presenting one face pair at a time;
-3. recording the participant's choice;
-4. recording response time and trial metadata;
-5. exporting or submitting participant responses.
-
-The generated participant experiment files are not versioned:
-
-```text
-apps/participant/experiment.json
-apps/participant/stimuli/
-```
-
-The CFD images themselves are never distributed through this repository.
-
-See `apps/participant/README.md` for details.
-
-## Architecture
-
-Reusable scientific logic lives in:
-
-```text
-src/face_reconstruction/
-```
-
-The applications call this code rather than reimplementing the scientific pipeline.
-
-Conceptually:
-
-```text
-                  ┌─────────────────────────┐
-                  │   Researcher dashboard  │
-                  │      Streamlit          │
-                  └────────────┬────────────┘
-                               │
-                               ▼
-                  ┌─────────────────────────┐
-                  │ face_reconstruction     │
-                  │ reusable Python package │
-                  └────────────┬────────────┘
-                               │
-              ┌────────────────┴────────────────┐
-              │                                 │
-              ▼                                 ▼
-     experiment configuration          analysis / reconstruction
-              │
-              ▼
-     ┌──────────────────────┐
-     │ Participant task     │
-     │ HTML / CSS / JS      │
-     └──────────────────────┘
-```
-
-The `scripts/` directory is retained as a command-line interface for development, testing, debugging, batch execution, and reproducibility. The long-term goal is that normal experimental use does not require researchers to invoke these scripts manually.
-
-The main package responsibilities are:
-
-- `data/`: CFD metadata handling and stimulus construction;
-- `experiment/`: pair generation and response simulation;
-- `models/`: Bradley–Terry estimation;
-- `geometry/`: landmark extraction, alignment, triangulation, and warping;
-- `reconstruction/`: weighting and facial morphing;
-- `diagnostics/`: experimental and model diagnostics;
-- `validation/`: input and experimental-data validation;
-- `utils/`: shared utilities.
-
-The repository follows a `src/` layout. Reusable scientific logic lives in the `face_reconstruction` package, while `scripts/` contains the command-line entry points for each stage of the pipeline.
-
-The main package responsibilities are:
-
-- `data/`: CFD metadata handling and stimulus construction.
-- `experiment/`: pair generation and response simulation.
-- `models/`: Bradley–Terry estimation.
-- `geometry/`: landmark validation, face alignment, triangulation, and piecewise-affine warping.
-- `reconstruction/`: weighting and participant-specific facial morphing.
-- `diagnostics/`: experimental and model diagnostics.
-- `validation/`: validation utilities for experimental data.
-- `utils/`: shared I/O and path utilities.
+---
 
 ## Installation
 
@@ -335,117 +469,113 @@ Install the package in editable mode with development dependencies:
 python -m pip install -e ".[dev]"
 ```
 
-The project currently supports Python 3.10–3.13.
-
-Verify the installation with:
+Install the researcher application dependencies if needed:
 
 ```bash
-python -m pytest
-python -m ruff check src scripts tests
+python -m pip install -e ".[app]"
 ```
 
+The project supports Python 3.10–3.13.
 
+---
 
-## Quick Start
+## Running the researcher dashboard
 
-The scripts are designed to be run from the repository root and follow the numerical order of the pipeline.
-
-### 1. Prepare the CFD stimulus set
-
-The Chicago Face Database files are not distributed with this repository. Place the required CFD metadata and images under the expected `data/raw/` structure before running the preprocessing steps.
+From the repository root:
 
 ```bash
-python scripts/01_audit_cfd_manifest.py
-python scripts/02_build_stimuli.py
-python scripts/03_generate_pairs.py
+streamlit run apps/researcher/app.py
 ```
 
-These steps audit the source data, construct the candidate stimulus set, and generate the pairwise-comparison design.
+The current recommended workflow is:
 
-### 2. Validate the statistical pipeline with simulated participants
+```text
+01 Stimuli
+→ save active stimulus set
 
-Before using experimental responses, the Bradley–Terry estimation pipeline can be tested on synthetic data:
+02 Pairs
+→ generate and save active pair design
 
-```bash
-python scripts/04_simulate_participants.py
-python scripts/05_fit_bradley_terry.py
+03 Experiment
+→ build participant experiment
+
+Participant task
+→ collect response JSON
+
+04 Bradley–Terry
+→ upload responses and estimate reconstruction weights
 ```
 
-The simulation step generates known latent utilities and synthetic choices, allowing estimated Bradley–Terry scores to be compared against ground truth.
+---
 
-For real experiments, simulated responses are replaced by the participant response table collected during the pairwise-choice task.
+## Facial reconstruction pipeline
 
-### 3. Build the facial geometry
+The downstream geometry pipeline uses MediaPipe Face Landmarker to extract 478 facial landmarks from each selected face.
 
-Extract and inspect MediaPipe landmarks:
+Valid faces are then aligned using similarity transforms.
 
-```bash
-python scripts/06_extract_landmarks.py
-python scripts/07_visualise_landmarks.py
+A stable subset of landmarks is selected and a common Delaunay triangulation is constructed on the mean aligned face shape.
+
+Participant-specific reconstruction combines:
+
+1. a weighted target facial shape;
+2. piecewise-affine warping of each source face toward that target;
+3. weighted texture averaging using participant-specific Bradley–Terry weights.
+
+The final output is a reconstructed facial prototype corresponding to the participant's estimated latent preference structure.
+
+---
+
+## Scripts
+
+The numbered scripts remain available for reproducibility, development, debugging, and batch execution.
+
+They correspond to the original modular pipeline:
+
+```text
+01 — Audit CFD metadata
+02 — Build stimulus set
+03 — Generate pair comparisons
+04 — Simulate participant responses
+05 — Fit Bradley–Terry model
+06 — Extract facial landmarks
+07 — Visualise landmark quality
+08 — Align faces
+09 — Build common triangulation
+10 — Reconstruct facial prototype
 ```
 
-Align the valid faces to a common coordinate system:
+They should increasingly be treated as command-line wrappers around reusable functionality in `src/face_reconstruction/`, rather than as the primary user interface.
 
-```bash
-python scripts/08_align_faces.py
-```
-
-Build and validate the common Delaunay topology:
-
-```bash
-python scripts/09_build_common_triangulation.py
-```
-
-### 4. Reconstruct a facial prototype
-
-A uniform-weight reconstruction can be used as a baseline:
-
-```bash
-python scripts/10_morph_delaunay.py \
-  --weight-mode uniform
-```
-
-For a participant-specific reconstruction, provide Bradley–Terry estimates:
-
-```bash
-python scripts/10_morph_delaunay.py \
-  --weight-mode bradley-terry \
-  --weights-path path/to/bradley_terry_scores.csv
-```
-
-The reconstruction combines two participant-specific components:
-
-1. a **weighted facial shape**, obtained from the aligned landmark coordinates;
-2. a **weighted facial texture**, obtained after piecewise-affine warping each source face to that target shape.
-
-### Development checks
-
-Before committing changes, run:
-
-```bash
-python -m pytest
-python -m ruff check src scripts tests
-```
-
-The same checks are executed automatically by GitHub Actions on pushes and pull requests.
-
-
+---
 
 ## Data
 
-The repository does not distribute the Chicago Face Database (CFD) images or associated licensed source files.
+The repository does not distribute the Chicago Face Database images or associated licensed source files.
 
-Users must obtain the CFD separately and place the required source files under the local `data/raw/` directory before running the preprocessing pipeline.
+Users must obtain the CFD separately and place the required files under:
 
-The repository also does not version:
+```text
+data/raw/cfd/
+```
 
-- raw participant response data;
-- generated intermediate arrays and manifests;
+The repository does not version:
+
+- CFD source images;
+- generated participant experiment images;
+- participant response data;
+- generated intermediate arrays;
 - reconstructed images;
-- downloaded MediaPipe model files;
-- other large or derived artifacts.
+- large derived artifacts.
 
-These files are excluded from version control and are regenerated locally by the pipeline.
+In particular:
+
+```text
+apps/participant/experiment.json
+apps/participant/stimuli/
+```
+
+are generated locally and should remain excluded from Git.
 
 A typical local data layout is:
 
@@ -464,59 +594,87 @@ data/
 │   ├── true_latent_scores.csv
 │   └── simulated_responses.csv
 └── results/
+    ├── bradley_terry/
     └── morphing/
 ```
 
-Exact contents may vary depending on whether the pipeline is run with simulated or experimental participant data.
+---
 
 ## Outputs
 
-### Stimulus and experimental-design outputs
-
-The preprocessing and experiment-design stages produce:
-
-- a standardized stimulus table;
-- balanced pairwise comparisons;
-- exposure and design diagnostics;
-- optional simulated participant responses.
-
-### Bradley–Terry outputs
-
-Participant responses are converted into participant-specific latent utilities.
+### Experimental design
 
 Typical outputs include:
 
-- one latent utility estimate per face;
+- active stimulus pool;
+- reproducible pairwise comparison design;
+- group-stratified pair allocations;
+- participant experiment configuration.
+
+### Bradley–Terry analysis
+
+Typical outputs include:
+
+- latent utility estimates;
 - uncertainty estimates;
 - face rankings;
+- normalized reconstruction weights.
+
+### Geometry
+
+Typical outputs include:
+
+- MediaPipe landmark arrays;
+- alignment outputs;
+- landmark QC diagnostics;
+- common Delaunay topology;
+- topology validation tables.
+
+### Reconstruction
+
+Typical outputs include:
+
+- participant-specific reconstructed face;
+- weighted target landmark configuration;
 - reconstruction weights;
-- diagnostics for comparison-graph connectivity and score recovery.
-
-### Geometry outputs
-
-The facial-geometry stages produce:
-
-- MediaPipe facial landmark arrays;
-- landmark QC diagnostics and visualizations;
-- aligned facial images and landmark coordinates;
-- a common Delaunay topology;
-- topology-QC manifests.
-
-### Reconstruction outputs
-
-The final reconstruction stage produces:
-
-- the participant-specific reconstructed face;
-- the weighted target landmark configuration;
-- the target topology points including boundary anchors;
-- the weights used for the reconstruction;
 - triangle-level QC diagnostics;
-- a JSON configuration describing the reconstruction run.
+- reconstruction configuration metadata.
 
-Optional individual warped faces can also be saved for quality control.
+---
 
 ## Reproducibility
 
-Derived files under `data/interim/`, `data/processed/`, `data/simulated/`, and `data/results/` are intended to be reproducible from the source data and pipeline configuration rather than maintained as source-controlled artifacts.
+The codebase separates:
 
-The codebase separates reusable scientific logic from executable scripts so that individual stages can be tested independently while preserving a reproducible end-to-end workflow.
+```text
+user interfaces
+scientific logic
+generated data
+```
+
+The scientific implementation lives in `src/face_reconstruction/` and is shared across:
+
+- the researcher application;
+- command-line scripts;
+- tests;
+- future batch or deployment interfaces.
+
+Generated artifacts under `data/interim/`, `data/processed/`, `data/simulated/`, `data/results/`, and the generated participant experiment package are intended to be reproducible from source data and explicit experiment configuration rather than maintained as version-controlled source files.
+
+---
+
+## Development
+
+Run the test suite:
+
+```bash
+python -m pytest
+```
+
+Run Ruff:
+
+```bash
+python -m ruff check src scripts apps/researcher tests
+```
+
+GitHub Actions runs automated checks on pushes and pull requests.
